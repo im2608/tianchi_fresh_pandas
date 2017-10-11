@@ -6,6 +6,7 @@ Created on Aug 4, 2017
 
 import datetime
 import pandas as pd
+import numpy as np
 
 
 def convertDatatimeToStr(opt_datatime):
@@ -23,3 +24,9 @@ def convert_date_str_to_dayoffset(date_str_series, slide_window_size, checking_d
     
     return dayoffset_series
         
+        
+def SeriesDivision(divisor, dividend):
+    quotient = divisor / dividend
+    quotient.fillna(0, inplace=True)
+    quotient[np.isinf(quotient)] = 0
+    return quotient
