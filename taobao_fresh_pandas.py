@@ -18,39 +18,62 @@ from common import *
 
 def calculate_slide_window(slide_window_df, slide_window_size, checking_date, ):    
     print("handling checking date ", checking_date)
-    feature_matrix_df = pd.DataFrame()
     
-    user_item_pair = slide_window_df[['user_id', 'item_id']].drop_duplicates()
-    user_item_pair.index = range(np.shape(user_item_pair)[0])
+    
+    UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
+    UIC.index = range(np.shape(UIC)[0])
+    
+    feature_matrix_df = pd.DataFrame()
+    feature_matrix_df = pd.concat([feature_matrix_df, UIC], axis = 1)
 
-    feature_matrix_df = pd.concat([feature_matrix_df, user_item_pair], axis = 1)
-
+    #############################################################################################
+    #############################################################################################
+    # user-item 特征
+    #############################################################################################
+    #############################################################################################
     # 用户属性
     # 用户在checking day 前一天对item是否有过cart/ favorite
-    feature = feature_user_item_opt_before1day(slide_window_df, user_item_pair, 3)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
-    
-    feature = feature_user_item_opt_before1day(slide_window_df, user_item_pair, 2)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
+    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 3, feature_matrix_df)   
+    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 2, feature_matrix_df)
 
     # 用户 - 商品 属性
     # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
-    feature = feature_user_item_behavior_ratio(slide_window_df, user_item_pair)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
+    feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
     
     # 用户第一次，最后一次操作 item 至 window_end_date(不包括) 的天数
     # 用户第一次，最后一次操作 item 之间的天数, 
-    feature = feature_user_item_1stlast_opt(slide_window_df, user_item_pair)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
-
+    feature_matrix_df = feature_user_item_1stlast_opt(slide_window_df, UIC, feature_matrix_df)
+    
     #  用户第一次操作商品到购买之间的天数
-    feature = feature_days_between_1stopt_and_buy(slide_window_df, user_item_pair)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
+    feature_matrix_df = feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df)
     
     #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
-    feature = feature_behavior_cnt_before_1st_buy(slide_window_df, user_item_pair)
-    feature_matrix_df = pd.merge(feature_matrix_df, feature, how='lfet', on=['user_id', 'item_id'])
+    feature_matrix_df = feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
+    
 
+    #############################################################################################
+    #############################################################################################
+    # user-category 特征
+    #############################################################################################
+    #############################################################################################
+   # 用户在checking day 前一天对 category 是否有过cart/ favorite
+    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 3)
+    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 2)
+
+    # 用户 - 商品 属性
+    # 用户checking_date（不包括）之前 在 category 上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
+    feature_matrix_df = feature_user_category_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
+    
+    # 用户第一次，最后一次操作 category 至 window_end_date(不包括) 的天数
+    # 用户第一次，最后一次操作 category 之间的天数, 
+    feature_matrix_df = feature_user_category_1stlast_opt(slide_window_df, UIC, feature_matrix_df)
+
+    #  用户第一次操作 category 到购买之间的天数
+    feature_matrix_df = feature_user_category_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df)
+
+    #用户第一次购买 item 前， 在 caetory 上各个 behavior 的数量, 3个特征
+    feature_matrix_df = feature_user_category_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
+    
     checking_date += datetime.timedelta(days = 1)
 
     del slide_window_df
