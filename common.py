@@ -7,6 +7,7 @@ Created on Aug 4, 2017
 import datetime
 import pandas as pd
 import numpy as np
+import time
 
 
 def convertDatatimeToStr(opt_datatime):
@@ -19,14 +20,21 @@ def convert_date_str_to_dayoffset(date_str_series, slide_window_size, checking_d
         date_in_window = checking_date + datetime.timedelta(days=-i)
         date_str = "%4d-%02d-%02d" % (date_in_window.year, date_in_window.month, date_in_window.day)
         slide_window_date_dayoffset[date_str] =  i
-        
+
     dayoffset_series = pd.Series(list(map(lambda x : slide_window_date_dayoffset[x], date_str_series)))
-    
+
     return dayoffset_series
-        
         
 def SeriesDivision(divisor, dividend):
     quotient = divisor / dividend
     quotient.fillna(0, inplace=True)
     quotient[np.isinf(quotient)] = 0
     return quotient
+
+
+rename_item_col_name = lambda col_name: "item_" + col_name if (col_name != 'item_id' and col_name != 'user_id' and col_name != 'item_category') else col_name
+rename_category_col_name = lambda col_name: "category_" + col_name if (col_name != 'item_id' and col_name != 'user_id' and col_name != 'item_category') else col_name
+
+
+def getCurrentTime():
+    return time.strftime("%Y-%m-%d %X", time.localtime())

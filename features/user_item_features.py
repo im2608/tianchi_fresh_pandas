@@ -27,7 +27,7 @@ def feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df):
 
     user_behavior_df = feature_user_behavior_ratio(slide_window_df, UIC, 'item_id')
     
-    user_behavior_df.rename(columns=lambda col_name: "item_" + col_name if (col_name != 'item_id' and col_name != 'user_id') else col_name , inplace=True)
+    user_behavior_df.rename(columns=rename_item_col_name, inplace=True)
     user_behavior_df.name= "user_behavior_on_item"
 
     feature_matrix_df = pd.merge(feature_matrix_df, user_behavior_df, how='left', on=['user_id', 'item_id'])
@@ -38,7 +38,7 @@ def feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df):
 # 用户第一次，最后一次操作 item 之间的天数, 
 def feature_user_item_1stlast_opt(slide_window_df, UIC, feature_matrix_df):
     dayoffset_1stlast = feature_user_1stlast_opt(slide_window_df, UIC, 'item_id')
-    dayoffset_1stlast.rename(columns=lambda col_name: "item_" + col_name if (col_name != 'item_id' and col_name != 'user_id') else col_name , inplace=True)
+    dayoffset_1stlast.rename(columns=rename_item_col_name, inplace=True)
     
     feature_matrix_df = pd.merge(feature_matrix_df, dayoffset_1stlast, how='left', on=['user_id', 'item_id'])
     return feature_matrix_df
@@ -46,7 +46,7 @@ def feature_user_item_1stlast_opt(slide_window_df, UIC, feature_matrix_df):
 #  用户第一次操作商品到购买之间的天数
 def feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df):
     user_buy_item_df = feature_days_between_1stopt_and_buy(slide_window_df, UIC, 'item_id')
-    user_buy_item_df.rename(columns=lambda col_name: "item_" + col_name if (col_name != 'item_id' and col_name != 'user_id') else col_name , inplace=True)
+    user_buy_item_df.rename(columns=rename_item_col_name, inplace=True)
 
     feature_matrix_df = pd.merge(feature_matrix_df, user_buy_item_df, how='left', on=['user_id', 'item_id'])
     return feature_matrix_df
@@ -54,11 +54,18 @@ def feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_
 #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
 def feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df):
     user_opt_before_1st_buy_df = feature_behavior_cnt_before_1st_buy(slide_window_df, UIC, 'item_id')
-    user_opt_before_1st_buy_df.rename(columns=lambda col_name: "item_" + col_name if (col_name != 'item_id' and col_name != 'user_id') else col_name , inplace=True)    
+    user_opt_before_1st_buy_df.rename(columns=rename_item_col_name, inplace=True)    
     feature_matrix_df = pd.merge(feature_matrix_df, user_opt_before_1st_buy_df, how='left', on=['user_id', 'item_id'])
     return feature_matrix_df
 
 
+# [begin date, end date) 期间，总共有多少用户购买了该 item
+def feature_how_many_users_bought_item(slide_window_df, UIC, feature_matrix_df):
+    user_cnt_bought_df = feature_how_many_users_bought_IC(slide_window_df, UIC, 'item_id')
+    user_cnt_bought_df.rename(columns={'user_cnt':'user_cnt_buy_item'}, inplace=True)
+    
+    feature_matrix_df = pd.merge(feature_matrix_df, user_cnt_bought_df, how='left', on='item_id')
+    return feature_matrix_df
 
 
 
