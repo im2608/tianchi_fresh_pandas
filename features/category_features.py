@@ -34,4 +34,7 @@ def feature_category_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix):
     category_user_cnt_on_behavior.rename(columns=rename_category_col_name, inplace=True)
     
     feature_matrix = pd.merge(feature_matrix, category_user_cnt_on_behavior, how='left', on=['item_category'])
-    return 
+    return feature_matrix
+
+
+

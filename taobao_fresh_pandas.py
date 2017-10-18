@@ -13,137 +13,34 @@ import datetime
 from global_variables import *
 from common import *
 from feature_extraction import *
+from greenlet import getcurrent
 
-from user_features import *
-from user_item_features import * 
-from user_category_features import *
-from category_features import *
-from item_features import *
-from corss_features import *
-from nltk.tbl import feature
+from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
+from sklearn.cross_validation import StratifiedKFold 
+from sklearn.grid_search import GridSearchCV
+from sklearn.utils import shuffle
 
-def calculate_slide_window(slide_window_df, slide_window_size, checking_date, ):    
+
+def extracting_Y(UI, label_day_df):
+    Y = label_day_df[['user_id', 'item_id']][label_day_df['behavior_type'] == 4].drop_duplicates()
+    Y['buy'] = 1
+    Y.index = range(Y.shape[0])
+
+    Y = pd.merge(UI, Y, how='left', on=['user_id', 'item_id'])
+    Y.fillna(0, inplace=True)
+    return Y
+
+
+def calculate_slide_window(slide_window_df, slide_window_size, checking_date, Y_label):    
     print("handling checking date ", checking_date)
     
-    UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
-    UIC.index = range(np.shape(UIC)[0])
+    feature_matrix_df = extracting_features(slide_window_df)
     
-    feature_matrix_df = pd.DataFrame()
-    feature_matrix_df = pd.concat([feature_matrix_df, UIC], axis = 1)
-
-    #############################################################################################
-    #############################################################################################
-    # user-item 特征
-    #############################################################################################
-    #############################################################################################    
-    # 用户在checking day 前一天对item是否有过cart/ favorite
-    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 3, feature_matrix_df)   
-    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 2, feature_matrix_df)
-
-    # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
-    feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
-    
-    # 用户第一次，最后一次操作 item 至 window_end_date(不包括) 的天数
-    # 用户第一次，最后一次操作 item 之间的天数, 
-    feature_matrix_df = feature_user_item_1stlast_opt(slide_window_df, UIC, feature_matrix_df)
-    
-    #  用户第一次操作商品到购买之间的天数
-    feature_matrix_df = feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df)
-    
-    #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
-    feature_matrix_df = feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
-    
-    # [begin date, end date) 期间，总共有多少用户购买了该  item
-    feature_matrix_df = feature_how_many_users_bought_item(slide_window_df, UIC, feature_matrix_df)
-    
-
-    #############################################################################################
-    #############################################################################################
-    # user-category 特征
-    #############################################################################################
-    #############################################################################################
-   # 用户在checking day 前一天对 category 是否有过cart/ favorite
-    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 3)
-    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 2)
-
-    # 用户checking_date（不包括）之前 在 category 上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作 category 的总次数的比例,
-    feature_matrix_df = feature_user_category_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
-    
-    # 用户第一次，最后一次操作 category 至 window_end_date(不包括) 的天数
-    # 用户第一次，最后一次操作 category 之间的天数, 
-    feature_matrix_df = feature_user_category_1stlast_opt(slide_window_df, UIC, feature_matrix_df)
-
-    #  用户第一次操作 category 到购买之间的天数
-    feature_matrix_df = feature_user_category_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df)
-
-    #用户第一次购买 category 前， 在 caetory 上各个 behavior 的数量, 3个特征
-    feature_matrix_df = feature_user_category_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
-    
-    # [begin date, end date) 期间，总共有多少用户购买了该 category
-    feature_matrix_df = feature_how_many_users_bought_category(slide_window_df, UIC, feature_matrix_df)
-    
-    
-    #############################################################################################
-    #############################################################################################
-    # category 特征
-    #############################################################################################
-    #############################################################################################
-    
-    # category 第一次, 最后一次 behavior 距离checking date 的天数, 以及第一次, 最后一次之间的天数， 返回 12 个特征
-    feature_matrix_df = feature_category_days_from_1st_last_behavior(slide_window_df, UIC, feature_matrix_df)
-    
-    # category 上各个行为的次数,以及销量(即buy的次数)的排序
-    feature_matrix_df = feature_item_behavior_cnt(slide_window_df, UIC, feature_matrix_df)
-    
-    # category 上各个行为用户的数量
-    feature_matrix_df = feature_category_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix_df)
-
-    
-    #############################################################################################
-    #############################################################################################
-    # item 特征
-    #############################################################################################
-    #############################################################################################
-    # item 第一次, 最后一次 behavior 距离checking date 的天数, 以及第一次, 最后一次之间的天数， 返回 12 个特征
-    feature_matrix_df = feature_item_days_from_1st_last_behavior(slide_window_df, UIC, feature_matrix_df)
-    
-    
-    # item 上各个行为的次数,以及销量(即buy的次数)的排序
-    feature_matrix_df = feature_item_behavior_cnt(slide_window_df, UIC, feature_matrix_df)
-    
-    # item 上各个行为用户的数量
-    feature_matrix_df = feature_item_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix_df)
- 
- 
- 
-    #############################################################################################
-    #############################################################################################
-    # cross 特征
-    #############################################################################################
-    #############################################################################################
-    
-    # item 的销量占 category 的销量的比例, 以及item 销量在category销量中的排序
-    feature_matrix_df = feature_sales_ratio_itme_category(feature_matrix_df)
-    
-    # item 的1st, last behavior 与 category 的1st， last 相差的天数
-    feature_1st_last_IC(feature_matrix_df)
-
-    # item  在各个behavior上的次数占 category 上各个behavior次数的比例    
-    feature_matrix_df = feature_behavior_cnt_itme_category(feature_matrix_df)
-    
-    
-    
-    
-    
-    #############################################################################################
-    #############################################################################################
-    # 特征结束
-    #############################################################################################
-    #############################################################################################
-    checking_date += datetime.timedelta(days = 1)
+    gbcf = GradientBoostingClassifier(n_estimators=500, max_depth=7, learning_rate=0.1, loss="exponential")
+    gbcf.fit(feature_matrix_df, Y_label['buy'])
 
     del slide_window_df
-    return feature_matrix_df
+    return gbcf
 
 
 def remove_user_item_only_buy(slide_window_df):
@@ -166,10 +63,63 @@ def remove_user_item_only_buy(slide_window_df):
 
     return slide_window_df
 
-def main():
+
+def single_window():
     data_filename = r"%s\..\input\preprocessed_user_data_no_hour.csv" % (runningPath)
     
-    print("reading csv ", data_filename)
+    print(getCurrentTime(), "reading csv ", data_filename)
+
+    raw_data_df = pd.read_csv(data_filename)
+    
+    training_date = '2014-12-18'
+    forecasting_date = '2014-12-19'
+   
+    training_window_df = raw_data_df[raw_data_df['time'] < training_date]
+    
+    training_window_df = remove_user_item_only_buy(training_window_df)
+
+    training_window_df.index = range(training_window_df.shape[0])  # 重要！！
+
+    slide_window_size = 30
+    training_window_df['dayoffset'] = convert_date_str_to_dayoffset(training_window_df['time'], slide_window_size, 
+                                                                    datetime.datetime.strptime(training_date, "%Y-%m-%d"))
+
+    training_UI = training_window_df[['user_id', 'item_id']].drop_duplicates()
+
+    Y_label = extracting_Y(training_UI, raw_data_df[raw_data_df['time'] == training_date][['user_id', 'item_id', 'behavior_type']])
+
+    gbcf = calculate_slide_window(training_window_df, slide_window_size, training_date, Y_label)
+
+    training_window_df = raw_data_df
+    training_window_df = remove_user_item_only_buy(training_window_df)
+    training_window_df.index = range(training_window_df.shape[0])  # 重要！！
+
+    slide_window_size = 30
+    training_window_df['dayoffset'] = convert_date_str_to_dayoffset(training_window_df['time'], slide_window_size, training_date)
+    del training_window_df['time']
+
+    feature_matrix_df = extracting_features(training_window_df)
+    
+    UI = training_window_df[['user_id', 'item_id']].drop_duplicates()
+    UI.index = range(np.shape(UI)[0])
+
+    Y_fcsted = gbcf.predict(feature_matrix_df)
+    
+    print('Y_fcsted.shape', Y_fcsted.shape)
+    print('UI.shape', UI.shape)
+    np.savetxt(r"%s\..\output\fcst.csv" % (runningPath))
+    UI = pd.concat([UI, Y_fcsted], axis=1)
+    
+    outputFile = open(r"%s\..\output\fcst.csv" % (runningPath), encoding="utf-8", mode='w')
+    for i in range(UI.shape[0]):
+        outputFile.write("%s,%s,%d" % (UI.ix[i]['user_id'], UI.ix[i]['item_id'], Y_fcsted[i]))
+
+    return 0
+
+def slide_window():
+    data_filename = r"%s\..\input\preprocessed_user_data_no_hour.csv" % (runningPath)
+
+    print(getCurrentTime(), "reading csv ", data_filename)
 
     raw_data_df = pd.read_csv(data_filename)
     
@@ -177,27 +127,59 @@ def main():
     start_date = datetime.datetime.strptime('2014-11-18', "%Y-%m-%d")
     end_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
 
-    print("slide window size %d, start date %s, end date %s" % 
-          (slide_window_size, convertDatatimeToStr(start_date), convertDatatimeToStr(end_date)))
+    print("%s slide window size %d, start date %s, end date %s" % 
+          (getCurrentTime(), slide_window_size, convertDatatimeToStr(start_date), convertDatatimeToStr(end_date)))
     
     checking_date = start_date + datetime.timedelta(days = slide_window_size)
-    while (checking_date <= end_date):
+    models = []
+    while (checking_date < end_date):
+
         start_date_str = convertDatatimeToStr(start_date)
-        checking_date_str =  convertDatatimeToStr(checking_date)
+        checking_date_str = convertDatatimeToStr(checking_date)
+
         slide_window_df = raw_data_df[(raw_data_df['time'] >= start_date_str ) & (raw_data_df['time'] < checking_date_str)]
         slide_window_df = remove_user_item_only_buy(slide_window_df)
 
         slide_window_df.index = range(np.shape(slide_window_df)[0])  # 重要！！
 
-        slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df, slide_window_size, checking_date)
+        slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df['time'], slide_window_size, checking_date)
         del slide_window_df['time']
-        calculate_slide_window(slide_window_df, slide_window_size, checking_date)
         
+        training_UI = slide_window_df[['user_id', 'item_id']].drop_duplicates()
+
+        Y_label = extracting_Y(training_UI, raw_data_df[raw_data_df['time'] == checking_date_str][['user_id', 'item_id', 'behavior_type']])
+
+        gbcf = calculate_slide_window(slide_window_df, slide_window_size, checking_date, Y_label)
+
+        models.append(gbcf)
+
+        start_date = start_date + datetime.timedelta(days=1)
+        checking_date = start_date + datetime.timedelta(days = slide_window_size)
+
         break
 
     return 0
 
 
+
+
+def run_in_ipython():
+    df = pd.read_csv(r'F:\doc\ML\taobao\fresh_comp_offline\taobao_fresh_pandas\input\preprocessed_user_data_no_hour.csv')
+    slide_window_df = df[df['time'] < '2014-11-25']
+    start_date = datetime.datetime.strptime('2014-11-25', "%Y-%m-%d")
+    
+    slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df['time'], 7, start_date)
+    slide_window_df = remove_user_item_only_buy(slide_window_df)
+    slide_window_df.index = range(np.shape(slide_window_df)[0])
+    
+    UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
+    UIC.index = range(np.shape(UIC)[0])
+
+    feature_matrix_df = pd.DataFrame()
+    feature_matrix_df = pd.concat([feature_matrix_df, UIC], axis = 1)
+
+    return
+
 if __name__ == '__main__':
-    main()
+    single_window()
     

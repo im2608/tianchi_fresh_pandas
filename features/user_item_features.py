@@ -20,6 +20,7 @@ def feature_user_item_opt_before1day(slide_window_df, UIC, behavior_type, featur
         opt_before1day_df.rename(columns={'opt_before1day':'item_cart_opt_before1day'}, inplace=True)
         
     feature_matrix_df = pd.merge(feature_matrix_df, opt_before1day_df, how='left', on=['user_id', 'item_id'])
+    feature_matrix_df.fillna(0, inplace=True)
     return feature_matrix_df
 
 # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）的次数, 这些次数占该用户操作商品的总次数的比例,
@@ -54,18 +55,12 @@ def feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_
 #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
 def feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df):
     user_opt_before_1st_buy_df = feature_behavior_cnt_before_1st_buy(slide_window_df, UIC, 'item_id')
-    user_opt_before_1st_buy_df.rename(columns=rename_item_col_name, inplace=True)    
+    user_opt_before_1st_buy_df.rename(columns=rename_item_col_name, inplace=True)
     feature_matrix_df = pd.merge(feature_matrix_df, user_opt_before_1st_buy_df, how='left', on=['user_id', 'item_id'])
+    feature_matrix_df.fillna(0, inplace=True)
     return feature_matrix_df
 
 
-# [begin date, end date) 期间，总共有多少用户购买了该 item
-def feature_how_many_users_bought_item(slide_window_df, UIC, feature_matrix_df):
-    user_cnt_bought_df = feature_how_many_users_bought_IC(slide_window_df, UIC, 'item_id')
-    user_cnt_bought_df.rename(columns={'user_cnt':'user_cnt_buy_item'}, inplace=True)
-    
-    feature_matrix_df = pd.merge(feature_matrix_df, user_cnt_bought_df, how='left', on='item_id')
-    return feature_matrix_df
 
 
 

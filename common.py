@@ -22,6 +22,8 @@ def convert_date_str_to_dayoffset(date_str_series, slide_window_size, checking_d
         slide_window_date_dayoffset[date_str] =  i
 
     dayoffset_series = pd.Series(list(map(lambda x : slide_window_date_dayoffset[x], date_str_series)))
+    
+    dayoffset_series.index = range(dayoffset_series.shape[0])
 
     return dayoffset_series
         

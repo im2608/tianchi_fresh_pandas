@@ -12,7 +12,7 @@ from unittest.mock import inplace
 
 # 用户在checking day 前一天对商品是否有过某种操作 cart/favorite
 def feature_user_opt_before1day(slide_window_df, UIC, behavior_type, item_or_category):
-    opt_before1day_df = slide_window_df[(slide_window_df['dayoffset'] == 1) & (slide_window_df['behavior_type'] == behavior_type)][['user_id', item_or_category]]
+    opt_before1day_df = slide_window_df[(slide_window_df['dayoffset'] == 1)&(slide_window_df['behavior_type'] == behavior_type)][['user_id', item_or_category]]
     opt_before1day_df.drop_duplicates(inplace=True)
     opt_before1day_df['opt_before1day' ] = 1
 
@@ -24,7 +24,7 @@ def feature_user_opt_before1day(slide_window_df, UIC, behavior_type, item_or_cat
 # 购买/收藏
 # 购买/购物车
 def feature_user_behavior_ratio(slide_window_df, UIC, item_or_category):
-    # user在 category 上各个操作的次数
+    # user在 item/category 上各个操作的次数
     user_behavior_cnt_df = slide_window_df[['user_id', item_or_category, 'behavior_type']]
     user_behavior_cnt_df = user_behavior_cnt_df.groupby(['user_id', item_or_category, 'behavior_type'], sort=False, as_index=False)
     user_behavior_cnt_df = user_behavior_cnt_df.size().unstack().fillna(0)
@@ -35,21 +35,21 @@ def feature_user_behavior_ratio(slide_window_df, UIC, item_or_category):
     user_behavior_raito_df = user_behavior_cnt_df / user_behavior_sum_df
     user_behavior_raito_df.fillna(0, inplace=True)
 
-    user_behavior_sum_df.rename(columns={1:'user_view_sum', 2:'user_favorite_sum', 3:'user_cart_sum', 4:'user_buy_sum'}, inplace=True)
+    user_behavior_sum_df.rename(columns={1:'user_view_sum', 2:'user_fav_sum', 3:'user_cart_sum', 4:'user_buy_sum'}, inplace=True)
     user_behavior_sum_df.reset_index(inplace=True)
     user_behavior_sum_df.index = range(np.shape(user_behavior_sum_df)[0])
     user_behavior_sum_df['user_buy_divides_view'] = SeriesDivision(user_behavior_sum_df['user_buy_sum'], user_behavior_sum_df['user_view_sum'])
-    user_behavior_sum_df['user_buy_divides_favorite'] = SeriesDivision(user_behavior_sum_df['user_buy_sum'], user_behavior_sum_df['user_favorite_sum'])
+    user_behavior_sum_df['user_buy_divides_fav'] = SeriesDivision(user_behavior_sum_df['user_buy_sum'], user_behavior_sum_df['user_fav_sum'])
     user_behavior_sum_df['user_buy_divides_cart'] = SeriesDivision(user_behavior_sum_df['user_buy_sum'], user_behavior_sum_df['user_cart_sum'])
 
     # user在某个 item/category 上各种操作次数
     user_behavior_cnt_df.reset_index(inplace=True)
     user_behavior_cnt_df.index = range(np.shape(user_behavior_cnt_df)[0])
-    user_behavior_cnt_df.rename(columns={1:'user_view_cnt', 2:'user_favorite_cnt', 3:'user_cart_cnt', 4:'user_buy_cnt'}, inplace=True)
+    user_behavior_cnt_df.rename(columns={1:'user_view_cnt', 2:'user_fav_cnt', 3:'user_cart_cnt', 4:'user_buy_cnt'}, inplace=True)
 
     user_behavior_raito_df.reset_index(inplace=True)
     user_behavior_raito_df.index = range(np.shape(user_behavior_raito_df)[0])
-    user_behavior_raito_df.rename(columns={1:'user_view_ratio', 2:'user_favorite_ratio', 3:'user_cart_ratio', 4:'user_buy_ratio'}, inplace=True)
+    user_behavior_raito_df.rename(columns={1:'user_view_ratio', 2:'user_fav_ratio', 3:'user_cart_ratio', 4:'user_buy_ratio'}, inplace=True)
     del user_behavior_raito_df['user_id']
     del user_behavior_raito_df[item_or_category]
 
@@ -125,10 +125,7 @@ def feature_behavior_cnt_before_1st_buy(slide_window_df, UIC, item_or_category):
     user_opt_before_1st_buy_df.fillna(0, inplace=True)
     user_opt_before_1st_buy_df.reset_index(inplace=True)
     user_opt_before_1st_buy_df.index = range(np.shape(user_opt_before_1st_buy_df)[0])
-    
-    user_opt_before_1st_buy_df = pd.merge(UIC, user_opt_before_1st_buy_df, how='left', on=['user_id', item_or_category])
-    user_opt_before_1st_buy_df.fillna(0, inplace=True)
-    user_opt_before_1st_buy_df.rename(columns={1:'viewcnt_bef_1stbuy', 2:'favcnt_bef_1stbuy', 3:'cartwcnt_bef_1stbuy'}, inplace=True)
+    user_opt_before_1st_buy_df.rename(columns={1:'viewcnt_bef_1stbuy', 2:'favcnt_bef_1stbuy', 3:'cartcnt_bef_1stbuy'}, inplace=True)
 
     user_opt_before_1st_buy_df.index = range(np.shape(user_opt_before_1st_buy_df)[0])
 
@@ -165,14 +162,6 @@ def feature_days_from_1st_last_behavior(slide_window_df, UIC, item_or_category):
 
     return behavior_dayoffset
 
-# [begin date, end date) 期间，总共有多少用户购买了该 item / category
-def feature_how_many_users_bought_IC(slide_window_df, UIC, item_or_category):
-    user_bought_df = slide_window_df[['user_id', item_or_category]][slide_window_df['behavior_type'] == 4]
-    user_bought_df = user_bought_df.groupby([item_or_category], sort=False).count().reset_index()
-    user_bought_df.rename(columns={0:'user_cnt'}, inplace=True)
-    return user_bought_df
-
-
 # item/category 上各个行为的次数,以及销量(即buy的次数)的排序
 def feature_behavior_cnt(slide_window_df, UIC, item_or_category):
     behavior_cnt_df = slide_window_df[[item_or_category, 'behavior_type']]
@@ -180,7 +169,7 @@ def feature_behavior_cnt(slide_window_df, UIC, item_or_category):
     behavior_cnt_df = behavior_cnt_df.size().unstack()
     behavior_cnt_df.reset_index(inplace=True)
     behavior_cnt_df.fillna(0, inplace=True)
-    behavior_cnt_df.rename(columns={1:'view_cnt', 2:'favorite_cnt', 3:'cart_cnt', 4:'sale_volume'}, inplace=True)
+    behavior_cnt_df.rename(columns={1:'view_cnt', 2:'fav_cnt', 3:'cart_cnt', 4:'sale_volume'}, inplace=True)
     
     behavior_cnt_df['sale_volume_rank'] = behavior_cnt_df['sale_volume'].rank(method='dense', ascending=False)
     

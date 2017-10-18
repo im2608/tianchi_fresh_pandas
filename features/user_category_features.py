@@ -18,7 +18,7 @@ def feature_user_category_opt_before1day(slide_window_df, UIC, behavior_type, fe
         opt_before1day_df.rename(columns={'opt_before1day':'category_fav_opt_before1day'}, inplace=True)
     else:
         opt_before1day_df.rename(columns={'opt_before1day':'category_cart_opt_before1day'}, inplace=True)
-
+        
     feature_matrix_df = pd.merge(feature_matrix_df, opt_before1day_df, how='left', on=['user_id', 'item_category'])
     feature_matrix_df.fillna(0, inplace=True)
 
@@ -49,7 +49,7 @@ def feature_user_category_1stlast_opt(slide_window_df, UIC, feature_matrix_df):
     return feature_matrix_df
 
 
-#  用户第一次操作商品到购买之间的天数
+#  用户第一次操作 category 到购买之间的天数
 def feature_user_category_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df):
     user_buy_item_df = feature_days_between_1stopt_and_buy(slide_window_df, UIC, 'item_category')
     user_buy_item_df.rename(columns=rename_category_col_name, inplace=True)
@@ -80,16 +80,6 @@ def feature_how_many_buy_category(slide_window_df, UIC, feature_matrix_df):
     feature_matrix_df.fillna(0, inplace=True)
 
     return user_buy_category_df
-
-# [begin date, end date) 期间，总共有多少用户购买了该 category
-def feature_how_many_users_bought_category(slide_window_df, UIC, feature_matrix_df):
-    user_cnt_bought_df = feature_how_many_users_bought_IC(slide_window_df, UIC, 'item_category')
-    user_cnt_bought_df.rename(columns={'user_cnt':'user_cnt_buy_category'}, inplace=True)
-
-    feature_matrix_df = pd.merge(feature_matrix_df, user_cnt_bought_df, how='left', on='item_category')
-    return feature_matrix_df
-
-
 
 
 
