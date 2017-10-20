@@ -33,8 +33,8 @@ def extracting_features(slide_window_df):
     #############################################################################################
     print("%s extracting user-item features" % (getCurrentTime()))    
     # 用户在checking day 前一天对item是否有过cart/ favorite
-    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 3, feature_matrix_df)   
-    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, UIC, 2, feature_matrix_df)
+    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, 3, feature_matrix_df)   
+    feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, 2, feature_matrix_df)
     
     # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
     feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
@@ -59,8 +59,8 @@ def extracting_features(slide_window_df):
     #############################################################################################
     print("%s extracting user-category features" % (getCurrentTime()))
    # 用户在checking day 前一天对 category 是否有过cart/ favorite
-    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 3, feature_matrix_df)
-    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, UIC, 2, feature_matrix_df)
+    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, 3, feature_matrix_df)
+    feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, 2, feature_matrix_df)
 
     # 用户checking_date（不包括）之前 在 category 上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作 category 的总次数的比例,
     feature_matrix_df = feature_user_category_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
@@ -160,8 +160,8 @@ def extracting_features(slide_window_df):
     del feature_matrix_df['user_id']
     del feature_matrix_df['item_id']
     del feature_matrix_df['item_category']
-    
     feature_matrix_df = preprocessing.scale(feature_matrix_df)
-    return feature_matrix_df
+
+    return feature_matrix_df, UIC
 
 

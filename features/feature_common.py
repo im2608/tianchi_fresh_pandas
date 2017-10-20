@@ -11,7 +11,7 @@ from common import *
 from unittest.mock import inplace
 
 # 用户在checking day 前一天对商品是否有过某种操作 cart/favorite
-def feature_user_opt_before1day(slide_window_df, UIC, behavior_type, item_or_category):
+def feature_user_opt_before1day(slide_window_df, behavior_type, item_or_category):
     opt_before1day_df = slide_window_df[(slide_window_df['dayoffset'] == 1)&(slide_window_df['behavior_type'] == behavior_type)][['user_id', item_or_category]]
     opt_before1day_df.drop_duplicates(inplace=True)
     opt_before1day_df['opt_before1day' ] = 1

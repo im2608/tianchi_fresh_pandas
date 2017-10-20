@@ -11,9 +11,9 @@ from common import *
 from feature_common import *
 
 # 用户在checking day 前一天对商品是否有过某种操作 cart/favorite
-def feature_user_item_opt_before1day(slide_window_df, UIC, behavior_type, feature_matrix_df):
+def feature_user_item_opt_before1day(slide_window_df, behavior_type, feature_matrix_df):
     
-    opt_before1day_df = feature_user_opt_before1day(slide_window_df, UIC, behavior_type, 'item_id')
+    opt_before1day_df = feature_user_opt_before1day(slide_window_df, behavior_type, 'item_id')
     if (behavior_type == 2):
         opt_before1day_df.rename(columns={'opt_before1day':'item_fav_opt_before1day'}, inplace=True)
     else:
