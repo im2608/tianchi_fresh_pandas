@@ -24,10 +24,11 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.externals import joblib
 
-# 规则： 如果user 在  checking date 前一天 cart 了 item ，则认为他checking date 会购买
+# 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
 def rule_fav_cart_before_1day(forecasting_window_df, Y_forecasted):
     Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 3, Y_forecasted)
-    Y_forecasted['buy'][Y_forecasted['item_cart_opt_before1day'] == 1] = 1
+    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 4, Y_forecasted)
+    Y_forecasted['buy'][(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0)] = 1
 
     return Y_forecasted
 
@@ -51,7 +52,7 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
         print("%s reading feature matrix from: %s_%d.csv" % (getCurrentTime(), checking_date_str, slide_window_size))
         feature_matrix_df = pd.read_csv(feature_mat_filename)
     else:
-        feature_matrix_df, UIC = extracting_features(slide_window_df)
+        feature_matrix_df, UIC = extracting_features(slide_window_df, slide_window_size)
 
     gbcf = GradientBoostingClassifier(loss='deviance', 
                                       learning_rate=0.1, 
@@ -109,19 +110,19 @@ def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slid
 def single_window():
 
     slide_window_size = 7
-    data_filename = r"%s\..\input\preprocessed_user_data_no_hour.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename)
 
-    fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
+    fcsted_item_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename)
     
-    training_date = datetime.datetime.strptime('2014-12-17', "%Y-%m-%d")
+    training_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
     window_start_date = training_date - datetime.timedelta(days=slide_window_size)
-
-    forecasting_date_str = '2014-12-18'
-    forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
+    
+    forecasting_date = training_date + datetime.timedelta(days=1)
+    forecasting_date_str = convertDatatimeToStr(forecasting_date)
 
     # training...
     gbcf = calculate_slide_window(raw_data_df, slide_window_size, window_start_date, training_date, fcsted_item_df)
@@ -133,7 +134,7 @@ def single_window():
     
     forecasting_window_df = create_slide_window_df(raw_data_df, window_start_date, forecasting_date, slide_window_size, fcsted_item_df)
 
-    forecasting_feature_matrix_df, forecasting_UI = extracting_features(forecasting_window_df)
+    forecasting_feature_matrix_df, forecasting_UI = extracting_features(forecasting_window_df, slide_window_size)
 
     Y_fcsted = gbcf.predict_proba(forecasting_feature_matrix_df)
     
@@ -143,8 +144,8 @@ def single_window():
     Y_fcsted_lable = pd.DataFrame(Y_fcsted, columns=['not_buy', 'buy'])
     Y_fcsted_lable = pd.concat([forecasting_UI, Y_fcsted_lable], axis=1)
 
-    # 规则： 如果user 在  checking date 前一天 cart 了 item ，则认为user checking date 会购买
-#     Y_fcsted_lable = rule_fav_cart_before_1day(forecasting_window_df, Y_fcsted_lable)
+    # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
+    Y_fcsted_lable = rule_fav_cart_before_1day(forecasting_window_df, Y_fcsted_lable)
 
     if (forecasting_date_str == '2014-12-19'):
         UI_buy_allinfo = Y_fcsted_lable[Y_fcsted_lable['buy'] >= 0.5]
@@ -206,7 +207,7 @@ def slide_window():
     checking_date_str = convertDatatimeToStr(checking_date)
     training_window_df = create_slide_window_df(raw_data_df, start_date, checking_date, slide_window_size, fcsted_item_df)
 
-    training_matrix_df, training_UI = extracting_features(training_window_df)
+    training_matrix_df, training_UI = extracting_features(training_window_df, slide_window_size)
     Y_training_label = extracting_Y(training_UI, raw_data_df[raw_data_df['time'] == checking_date_str][['user_id', 'item_id', 'behavior_type']])
 
     # 滑动窗口训练出的model分别对[ 12-18 - slide_window-size, 12-18] 的数据生成叶节点, 生成一个大的特征矩阵，然后交给LR进行训练
@@ -221,7 +222,7 @@ def slide_window():
     print("forecasting %s, window start date %s, window size %d" %(checking_date, start_date, slide_window_size))
 
     fcsting_window_df = create_slide_window_df(raw_data_df, fcsting_window_start_date, fcsting_date, slide_window_size, fcsted_item_df)
-    fcsting_matrix_df, fcsting_UI = extracting_features(fcsting_window_df)
+    fcsting_matrix_df, fcsting_UI = extracting_features(fcsting_window_df, slide_window_size)
     
     fcsting_matrix_df = convert_feature_mat_to_leaf_node(fcsting_matrix_df, slide_window_models)
 
@@ -243,9 +244,9 @@ def slide_window():
 
 
 def run_in_ipython():
-    df = pd.read_csv(r'F:\doc\ML\taobao\fresh_comp_offline\taobao_fresh_pandas\input\preprocessed_user_data_no_hour.csv')
-    slide_window_df = df[df['time'] < '2014-11-25']
-    start_date = datetime.datetime.strptime('2014-11-25', "%Y-%m-%d")
+    df = pd.read_csv(r'F:\doc\ML\taobao\fresh_comp_offline\taobao_fresh_pandas\input\preprocessed_user_data_fcsted_item_only.csv')
+    slide_window_df = df[(df['time'] < '2014-12-18')&(df['time'] >= '2014-12-11')]
+    start_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
     
     slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df['time'], 7, start_date)
     slide_window_df = remove_user_item_only_buy(slide_window_df)

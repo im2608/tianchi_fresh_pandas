@@ -24,25 +24,25 @@ def feature_user_item_cnt_ratio_on_category(feature_matrix_df):
 def feature_sales_ratio_itme_category(feature_matrix_df):
     feature_matrix_df['item_sale_vol_ratio_in_category'] = SeriesDivision(feature_matrix_df['item_sale_volume'], feature_matrix_df['category_sale_volume'])
 
-#     item_sale_vol_rank_in_category = feature_matrix_df[['item_id', 'item_category', 'item_sale_volume']]
-#     grouped_item_sale_val = item_sale_vol_rank_in_category.groupby(['item_category'], sort=False, as_index=False)
-#     
-#     item_sale_vol_rank_in_category = []    
-#     # 循环中计算 item 销量在各个 category 销量中的排序
-#     i = 0
-#     for item_category, item_sale_vol_group in grouped_item_sale_val:
-#         i += 1
-#         if (i % 100 == 0):
-#             print("%s, %d groups ranked\r" % (getCurrentTime(), i), end="")
-#         item_sale_vol_group.drop_duplicates(inplace=True)
-#         item_sale_vol_group['item_sale_volume_rank_in_cat'] = item_sale_vol_group['item_sale_volume'].rank(method='dense', ascending=False)
-#         item_sale_vol_rank_in_category.append(item_sale_vol_group)
-# 
-#     item_sale_vol_rank_in_category = pd.concat(item_sale_vol_rank_in_category, axis=0)
-#     del item_sale_vol_rank_in_category['item_sale_volume']
-#     
-#     feature_matrix_df = pd.merge(feature_matrix_df, item_sale_vol_rank_in_category, how='left', on=['item_category', 'item_id'] )
-#         
+    item_sale_vol_rank_in_category = feature_matrix_df[['item_id', 'item_category', 'item_sale_volume']]
+    grouped_item_sale_val = item_sale_vol_rank_in_category.groupby(['item_category'], sort=False, as_index=False)
+     
+    item_sale_vol_rank_in_category = []    
+    # 循环中计算 item 销量在各个 category 销量中的排序
+    i = 0
+    for item_category, item_sale_vol_group in grouped_item_sale_val:
+        i += 1
+        if (i % 100 == 0):
+            print("%s, %d groups ranked\r" % (getCurrentTime(), i), end="")
+        item_sale_vol_group.drop_duplicates(inplace=True)
+        item_sale_vol_group['item_sale_volume_rank_in_cat'] = item_sale_vol_group['item_sale_volume'].rank(method='dense', ascending=False)
+        item_sale_vol_rank_in_category.append(item_sale_vol_group)
+ 
+    item_sale_vol_rank_in_category = pd.concat(item_sale_vol_rank_in_category, axis=0)
+    del item_sale_vol_rank_in_category['item_sale_volume']
+     
+    feature_matrix_df = pd.merge(feature_matrix_df, item_sale_vol_rank_in_category, how='left', on=['item_category', 'item_id'] )
+         
     return feature_matrix_df
 
 
@@ -76,6 +76,14 @@ def feature_item_popularity(feature_matrix_df):
     feature_matrix_df['item_fav_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_fav'], feature_matrix_df['category_user_cnt_on_fav'])
     feature_matrix_df['item_cart_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_cart'], feature_matrix_df['category_user_cnt_on_cart'])
     feature_matrix_df['item_buy_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_buy'], feature_matrix_df['category_user_cnt_on_buy'])
+    
+    return feature_matrix_df
+
+# item的[fav, cart, buy]转化率/category的购买转化率
+def feature_item_conversion(feature_matrix_df):
+    feature_matrix_df['item_fav_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_fav_conversion'], feature_matrix_df['category_buy_conversion'])
+    feature_matrix_df['item_cart_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_cart_conversion'], feature_matrix_df['category_buy_conversion'])
+    feature_matrix_df['item_buy_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_buy_conversion'], feature_matrix_df['category_buy_conversion'])
     
     return feature_matrix_df
 

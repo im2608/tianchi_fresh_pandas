@@ -10,15 +10,12 @@ import numpy as np
 from common import *
 from feature_common import *
 
-# 用户在checking day 前一天对商品是否有过某种操作 cart/favorite
+# 用户在checking day 前一天对商品是否有过某种操作 view/cart/favorite/buy
 def feature_user_item_opt_before1day(slide_window_df, behavior_type, feature_matrix_df):
     
     opt_before1day_df = feature_user_opt_before1day(slide_window_df, behavior_type, 'item_id')
-    if (behavior_type == 2):
-        opt_before1day_df.rename(columns={'opt_before1day':'item_fav_opt_before1day'}, inplace=True)
-    else:
-        opt_before1day_df.rename(columns={'opt_before1day':'item_cart_opt_before1day'}, inplace=True)
-        
+    column_name = {1:'item_view_opt_before1day', 2:'item_fav_opt_before1day', 3:'item_cart_opt_before1day', 4:'item_buy_opt_before1day'}    
+    opt_before1day_df.rename(columns={'opt_before1day':column_name[behavior_type]}, inplace=True)
     feature_matrix_df = pd.merge(feature_matrix_df, opt_before1day_df, how='left', on=['user_id', 'item_id'])
     feature_matrix_df.fillna(0, inplace=True)
     return feature_matrix_df

@@ -17,7 +17,7 @@ from corss_features import *
 from sklearn import preprocessing
 
 
-def extracting_features(slide_window_df):
+def extracting_features(slide_window_df, slide_window_size):
     
     UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
     UIC.index = range(np.shape(UIC)[0])
@@ -87,10 +87,10 @@ def extracting_features(slide_window_df):
     feature_matrix_df = feature_category_days_from_1st_last_behavior(slide_window_df, UIC, feature_matrix_df)
     
     # category 上各个行为的次数,以及销量(即buy的次数)的排序
-    feature_matrix_df = feature_category_behavior_cnt(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_category_behavior_cnt(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     # category 上各个行为用户的数量
-    feature_matrix_df = feature_category_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_category_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
 
     print("After extracting category features, shape is ", feature_matrix_df.shape)
     #############################################################################################
@@ -102,12 +102,11 @@ def extracting_features(slide_window_df):
     # item 第一次, 最后一次 behavior 距离checking date 的天数, 以及第一次, 最后一次之间的天数， 返回 12 个特征
     feature_matrix_df = feature_item_days_from_1st_last_behavior(slide_window_df, UIC, feature_matrix_df)
     
-    
     # item 上各个行为的次数,以及销量(即buy的次数)的排序
-    feature_matrix_df = feature_item_behavior_cnt(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_item_behavior_cnt(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     # item 上各个行为用户的数量
-    feature_matrix_df = feature_item_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_item_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     
     print("After extracting item features, shape is ", feature_matrix_df.shape)
@@ -143,12 +142,15 @@ def extracting_features(slide_window_df):
     # item 的1st, last behavior 与 category 的1st， last 相差的天数
     feature_1st_last_IC(feature_matrix_df)
 
-    # item  在各个behavior上的次数占 category 上各个behavior次数的比例    
+    # item  在各个behavior上的次数占 category 上各个behavior次数的比例
     feature_matrix_df = feature_behavior_cnt_itme_category(feature_matrix_df)    
-    
+
     # 商品热度 浏览，收藏，购物车，购买该商品的用户数/浏览，收藏，购物车，购买同类型商品的总用户数
     feature_matrix_df = feature_item_popularity(feature_matrix_df)
-    
+
+    # item的[fav, cart, buy]转化率/category的购买转化率
+    feature_matrix_df = feature_item_conversion(feature_matrix_df)
+
     print("After extracting cross features, shape is ", feature_matrix_df.shape)
     #############################################################################################
     #############################################################################################

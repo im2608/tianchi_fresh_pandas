@@ -20,17 +20,18 @@ def feature_category_days_from_1st_last_behavior(slide_window_df, UIC, feature_m
     return feature_matrix
 
 # category 上各个行为的次数,以及销量(即buy的次数)的排序
-def feature_category_behavior_cnt(slide_window_df, UIC, feature_matrix):
-    category_behavior_cnt = feature_behavior_cnt(slide_window_df, UIC, 'item_category')
+def feature_category_behavior_cnt(slide_window_df, slide_window_size, UIC, feature_matrix):
+    category_behavior_cnt = feature_behavior_cnt(slide_window_df, slide_window_size, UIC, 'item_category')
     category_behavior_cnt.rename(columns=rename_category_col_name, inplace=True)
     feature_matrix = pd.merge(feature_matrix, category_behavior_cnt, how='left', on=['item_category'])
 
     return feature_matrix
 
 
-# category 上各个行为用户的数量
-def feature_category_user_cnt_on_behavior(slide_window_df, UIC, feature_matrix):
-    category_user_cnt_on_behavior = feature_user_cnt_on_behavior(slide_window_df, UIC, 'item_category')
+# category  上[1, 2, 3, slide_window_size] 天各个行为用户的数量
+# 转化率：  [fav, cart, buy]的user数量/view 过的 user数量
+def feature_category_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix):
+    category_user_cnt_on_behavior = feature_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, 'item_category')
     category_user_cnt_on_behavior.rename(columns=rename_category_col_name, inplace=True)
     
     feature_matrix = pd.merge(feature_matrix, category_user_cnt_on_behavior, how='left', on=['item_category'])

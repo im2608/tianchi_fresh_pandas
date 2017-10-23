@@ -13,6 +13,7 @@ import time
 def convertDatatimeToStr(opt_datatime):
     return "%04d-%02d-%02d" % (opt_datatime.year, opt_datatime.month, opt_datatime.day)
 
+
 # 将date string 转成与checking date 之间相差的天数 
 def convert_date_str_to_dayoffset(date_str_series, slide_window_size, checking_date):
     slide_window_date_dayoffset = {}
