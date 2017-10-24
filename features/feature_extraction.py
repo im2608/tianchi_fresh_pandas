@@ -37,7 +37,7 @@ def extracting_features(slide_window_df, slide_window_size):
     feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, 2, feature_matrix_df)
     
     # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
-    feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     # 用户第一次，最后一次操作 item 至 window_end_date(不包括) 的天数
     # 用户第一次，最后一次操作 item 之间的天数, 
@@ -63,7 +63,7 @@ def extracting_features(slide_window_df, slide_window_size):
     feature_matrix_df = feature_user_category_opt_before1day(slide_window_df, 2, feature_matrix_df)
 
     # 用户checking_date（不包括）之前 在 category 上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作 category 的总次数的比例,
-    feature_matrix_df = feature_user_category_behavior_ratio(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_user_category_behavior_ratio(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     # 用户第一次，最后一次操作 category 至 window_end_date(不包括) 的天数
     # 用户第一次，最后一次操作 category 之间的天数, 
@@ -141,9 +141,7 @@ def extracting_features(slide_window_df, slide_window_size):
     
     # item 的1st, last behavior 与 category 的1st， last 相差的天数
     feature_1st_last_IC(feature_matrix_df)
-
-    # item  在各个behavior上的次数占 category 上各个behavior次数的比例
-    feature_matrix_df = feature_behavior_cnt_itme_category(feature_matrix_df)    
+    
 
     # 商品热度 浏览，收藏，购物车，购买该商品的用户数/浏览，收藏，购物车，购买同类型商品的总用户数
     feature_matrix_df = feature_item_popularity(feature_matrix_df)

@@ -20,10 +20,14 @@ def feature_user_item_opt_before1day(slide_window_df, behavior_type, feature_mat
     feature_matrix_df.fillna(0, inplace=True)
     return feature_matrix_df
 
-# 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）的次数, 这些次数占该用户操作商品的总次数的比例,
-def feature_user_item_behavior_ratio(slide_window_df, UIC, feature_matrix_df):
+# 用户checking_date（不包括）之前操作（浏览， 收藏， 购物车， 购买）的次数, 这些次数占该用户操作item总次数的比例,
+# 购买/浏览
+# 购买/收藏
+# 购买/购物车
+# 用户在过去 [1，2，3，4]天（浏览， 收藏， 购物车， 购买）的次数
+def feature_user_item_behavior_ratio(slide_window_df, slide_window_size, UIC, feature_matrix_df):
 
-    user_behavior_df = feature_user_behavior_ratio(slide_window_df, UIC, 'item_id')
+    user_behavior_df = feature_user_behavior_ratio(slide_window_df, slide_window_size, UIC, 'item_id')
     
     user_behavior_df.rename(columns=rename_item_col_name, inplace=True)
     user_behavior_df.name= "user_behavior_on_item"

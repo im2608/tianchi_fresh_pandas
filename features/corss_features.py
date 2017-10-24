@@ -12,6 +12,7 @@ from feature_common import *
 
 
 # user 在 item上各个行为的次数占user在 category 上各个行为次数的比例
+# item 上各个行为的次数 / category 上各个行为的次数平均在每个item上的次数
 def feature_user_item_cnt_ratio_on_category(feature_matrix_df):
     feature_matrix_df['user_item_view_cnt_ratio_on_cat'] = SeriesDivision(feature_matrix_df['item_user_view_cnt'], feature_matrix_df['category_user_view_cnt'])
     feature_matrix_df['user_item_favorite_cnt_ratio_on_cat'] = SeriesDivision(feature_matrix_df['item_user_favorite_cnt'], feature_matrix_df['category_favorite_cnt'])
@@ -20,8 +21,12 @@ def feature_user_item_cnt_ratio_on_category(feature_matrix_df):
     
     return feature_matrix_df
 
+# item  在各个behavior上的次数占 category 上各个behavior次数的比例
 # item 的销量占 category 的销量的比例, 以及 item 销量在 category 销量中的排序
 def feature_sales_ratio_itme_category(feature_matrix_df):
+    feature_matrix_df['IC_view_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_view_cnt'], feature_matrix_df['category_view_cnt'])
+    feature_matrix_df['IC_fav_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_fav_cnt'], feature_matrix_df['category_fav_cnt'])
+    feature_matrix_df['IC_cart_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_cart_cnt'], feature_matrix_df['category_cart_cnt'])
     feature_matrix_df['item_sale_vol_ratio_in_category'] = SeriesDivision(feature_matrix_df['item_sale_volume'], feature_matrix_df['category_sale_volume'])
 
     item_sale_vol_rank_in_category = feature_matrix_df[['item_id', 'item_category', 'item_sale_volume']]
@@ -60,23 +65,12 @@ def feature_1st_last_IC(feature_matrix_df):
 
     return feature_matrix_df
 
-# item  在各个behavior上的次数占 category 上各个behavior次数的比例
-def feature_behavior_cnt_itme_category(feature_matrix_df):
-    feature_matrix_df['IC_view_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_view_cnt'], feature_matrix_df['category_view_cnt'])
-    feature_matrix_df['IC_fav_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_fav_cnt'], feature_matrix_df['category_fav_cnt'])
-    feature_matrix_df['IC_cart_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_cart_cnt'], feature_matrix_df['category_cart_cnt'])
-    feature_matrix_df['IC_buy_cnt_ratio'] = SeriesDivision(feature_matrix_df['item_sale_volume'], feature_matrix_df['category_sale_volume'])
-
-    return feature_matrix_df
-
-
 # 商品热度 浏览，收藏，购物车，购买该商品的用户数/浏览，收藏，购物车，购买同类型商品的总用户数
 def feature_item_popularity(feature_matrix_df):
     feature_matrix_df['item_view_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_view'], feature_matrix_df['category_user_cnt_on_view'])
     feature_matrix_df['item_fav_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_fav'], feature_matrix_df['category_user_cnt_on_fav'])
     feature_matrix_df['item_cart_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_cart'], feature_matrix_df['category_user_cnt_on_cart'])
     feature_matrix_df['item_buy_pop'] = SeriesDivision(feature_matrix_df['item_user_cnt_on_buy'], feature_matrix_df['category_user_cnt_on_buy'])
-    
     return feature_matrix_df
 
 # item的[fav, cart, buy]转化率/category的购买转化率
@@ -84,10 +78,15 @@ def feature_item_conversion(feature_matrix_df):
     feature_matrix_df['item_fav_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_fav_conversion'], feature_matrix_df['category_buy_conversion'])
     feature_matrix_df['item_cart_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_cart_conversion'], feature_matrix_df['category_buy_conversion'])
     feature_matrix_df['item_buy_conversion_divids_cat'] = SeriesDivision(feature_matrix_df['item_buy_conversion'], feature_matrix_df['category_buy_conversion'])
-    
+
     return feature_matrix_df
 
 
-
-
+# item 上各个行为的次数 / category 上各个行为的次数平均在每个item上的次数
+def feature_item_cnt_ratio_on_category(feature_matrix_df):
+    feature_matrix_df['item_view_ratio_in_cat'] = SeriesDivision(feature_matrix_df['item_view_cnt'], feature_matrix_df['category_view_cnt_mean_on_item'])
+    feature_matrix_df['item_fav_ratio_in_cat'] = SeriesDivision(feature_matrix_df['item_fav_cnt'], feature_matrix_df['category_fav_cnt_mean_on_item'])
+    feature_matrix_df['item_cart_ratio_in_cat'] = SeriesDivision(feature_matrix_df['item_cart_cnt'], feature_matrix_df['category_cart_cnt_mean_on_item'])
+    feature_matrix_df['item_buy_ratio_in_cat'] = SeriesDivision(feature_matrix_df['item__cnt'], feature_matrix_df['category_sale_vol_mean_on_item'])
+    return feature_matrix_df
 

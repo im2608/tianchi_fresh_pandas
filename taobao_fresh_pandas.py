@@ -109,7 +109,7 @@ def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slid
 
 def single_window():
 
-    slide_window_size = 7
+    slide_window_size = 30
     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename)
@@ -118,7 +118,7 @@ def single_window():
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename)
     
-    training_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
+    training_date = datetime.datetime.strptime('2014-12-16', "%Y-%m-%d")
     window_start_date = training_date - datetime.timedelta(days=slide_window_size)
     
     forecasting_date = training_date + datetime.timedelta(days=1)
@@ -145,7 +145,7 @@ def single_window():
     Y_fcsted_lable = pd.concat([forecasting_UI, Y_fcsted_lable], axis=1)
 
     # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-    Y_fcsted_lable = rule_fav_cart_before_1day(forecasting_window_df, Y_fcsted_lable)
+#     Y_fcsted_lable = rule_fav_cart_before_1day(forecasting_window_df, Y_fcsted_lable)
 
     if (forecasting_date_str == '2014-12-19'):
         UI_buy_allinfo = Y_fcsted_lable[Y_fcsted_lable['buy'] >= 0.5]
@@ -160,6 +160,7 @@ def single_window():
 
 #         f1 = f1_score(Y_true_label['buy'], Y_fcsted_lable['buy'], average='macro')
 #         print("F1 for %s, %.4f" % (forecasting_date_str, f1))
+        print("final report :", getCurrentTime())
         print(classification_report(Y_true_label['buy'], Y_fcsted_lable['buy'], target_names=["not buy", "buy"]))
 
     return 0

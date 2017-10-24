@@ -23,7 +23,19 @@ def feature_user_opt_before1day(slide_window_df, behavior_type, item_or_category
 # 购买/浏览
 # 购买/收藏
 # 购买/购物车
-def feature_user_behavior_ratio(slide_window_df, UIC, item_or_category):
+# 用户在过去 [1，2，3，4]天在 item/category上（浏览， 收藏， 购物车， 购买）的次数
+def get_user_behavior_cnt(slide_window_df, dayoffset, item_or_category):
+    user_behavior_cnt_df = slide_window_df[['user_id', item_or_category, 'behavior_type']][slide_window_df['dayoffset'] <= dayoffset].drop_duplicates()
+    user_behavior_cnt_df = user_behavior_cnt_df.groupby(['user_id', item_or_category, 'behavior_type'], sort=False, as_index=False)
+    user_behavior_cnt_df = user_behavior_cnt_df.size().unstack().fillna(0)
+    user_behavior_cnt_df.reset_index(inplace=True)
+    user_behavior_cnt_df.rename(columns={1:"%d_day_user_view_cnt" % dayoffset, 
+                                         2:"%d_day_user_fav_cnt" % dayoffset,
+                                         3:"%d_day_user_cart_cnt" % dayoffset,
+                                         4:"%d_day_user_buy_cnt" % dayoffset}, inplace=True)
+    return user_behavior_cnt_df
+
+def feature_user_behavior_ratio(slide_window_df, slide_window_size, UIC, item_or_category):
     # user在 item/category 上各个操作的次数
     user_behavior_cnt_df = slide_window_df[['user_id', item_or_category, 'behavior_type']]
     user_behavior_cnt_df = user_behavior_cnt_df.groupby(['user_id', item_or_category, 'behavior_type'], sort=False, as_index=False)
@@ -50,12 +62,31 @@ def feature_user_behavior_ratio(slide_window_df, UIC, item_or_category):
     user_behavior_raito_df.reset_index(inplace=True)
     user_behavior_raito_df.index = range(np.shape(user_behavior_raito_df)[0])
     user_behavior_raito_df.rename(columns={1:'user_view_ratio', 2:'user_fav_ratio', 3:'user_cart_ratio', 4:'user_buy_ratio'}, inplace=True)
-    del user_behavior_raito_df['user_id']
-    del user_behavior_raito_df[item_or_category]
+    user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_behavior_raito_df, on=['user_id', item_or_category], how='left')
+    
+
+    # 用户在过去 [1，2，3，4,7]天在item/category （浏览， 收藏， 购物车， 购买）的次数
+    user_behavior_cnt_n_day_arr = [user_behavior_cnt_df]
+    for dayoffset in [1,2,3,4,7]:
+        user_behavior_cnt_n_day_arr = get_user_behavior_cnt(slide_window_df, dayoffset, item_or_category)
+        user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_behavior_cnt_n_day_arr, on=['user_id', item_or_category], how='left')
+        user_behavior_cnt_df.fillna(0, inplace=True)
+
+    # user 在前一天 最早，最晚操作item/category的hour
+    user_1st_last_opt_hour = slide_window_df[['user_id', item_or_category, 'hour']][slide_window_df['dayoffset'] == 1].drop_duplicates()
+    user_1st_last_opt_hour = user_1st_last_opt_hour.groupby(['user_id', item_or_category], sort=False, as_index=False)
+    
+    user_1st_opt_hour = user_1st_last_opt_hour.min()
+    user_1st_opt_hour.rename(columns={'hour':'user_1st_opt_hour'}, inplace=True)
+    
+    user_last_opt_hour = user_1st_last_opt_hour.max()
+    user_last_opt_hour.rename(columns={'hour':'user_last_opt_hour'}, inplace=True)
+
+    user_1st_last_opt_hour = pd.merge(user_1st_opt_hour, user_last_opt_hour, on=['user_id', item_or_category], how='inner')
+    user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_1st_last_opt_hour, on=['user_id', item_or_category], how='left')
 
     user_behavior_df = pd.merge(user_behavior_sum_df, user_behavior_cnt_df, how='left', on='user_id')
-
-    user_behavior_df = pd.concat([user_behavior_df, user_behavior_raito_df], axis=1)
+    user_behavior_df.fillna(0, inplace=True)
     user_behavior_df.index = range(np.shape(user_behavior_df)[0])
 
     return user_behavior_df
@@ -184,6 +215,8 @@ def behavior_cnt_divides_mean(behavior_cnt_df, behavior_mean_df):
     dividision.index = range(dividision.shape[0])
     
     return dividision
+
+
 # item/category 上各个行为的次数, 
 # 每日的平均次数，
 # 前[1,2,3,4]天的次数/ 每日的平均次数，
@@ -229,10 +262,12 @@ def get_user_cnt_on_behavior(slide_window_df, item_or_category, dayoffset):
 
 
 def feature_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, item_or_category):
-    user_cnt_on_behavior_df = [get_user_cnt_on_behavior(slide_window_df, item_or_category, slide_window_size)]
+    user_cnt_on_behavior_df = get_user_cnt_on_behavior(slide_window_df, item_or_category, slide_window_size)
     user_cnt_on_behavior_df['fav_conversion'] =  SeriesDivision(user_cnt_on_behavior_df['user_cnt_on_fav'], user_cnt_on_behavior_df['user_cnt_on_view'])
     user_cnt_on_behavior_df['cart_conversion'] =  SeriesDivision(user_cnt_on_behavior_df['user_cnt_on_cart'], user_cnt_on_behavior_df['user_cnt_on_view'])
     user_cnt_on_behavior_df['buy_conversion'] =  SeriesDivision(user_cnt_on_behavior_df['user_cnt_on_buy'], user_cnt_on_behavior_df['user_cnt_on_view'])
+    
+    user_cnt_on_behavior_arr = [user_cnt_on_behavior_df]
 
     for dayoffset in [1,2,3,slide_window_size]:
         user_cnt_on_behavior_of_n_days = get_user_cnt_on_behavior(slide_window_df, item_or_category, dayoffset)
@@ -242,9 +277,9 @@ def feature_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, item_o
                                                        'user_cnt_on_fav':"%d_day_user_cnt_on_fav" % dayoffset, 
                                                        'user_cnt_on_cart':"%d_day_user_cnt_on_" % dayoffset,
                                                        'user_cnt_on_buy':"%d_day_user_cnt_on_view" % dayoffset}, inplace=True)
-        user_cnt_on_behavior_df.append(user_cnt_on_behavior_of_n_days)
+        user_cnt_on_behavior_arr.append(user_cnt_on_behavior_of_n_days)
 
-    user_cnt_on_behavior_df = pd.concat(user_cnt_on_behavior_df, axis=1)
+    user_cnt_on_behavior_df = pd.concat(user_cnt_on_behavior_arr, axis=1)
     
     user_cnt_on_behavior_df.fillna(0, inplace=True)
 
