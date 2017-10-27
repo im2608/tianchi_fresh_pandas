@@ -33,13 +33,13 @@ def feature_category_behavior_cnt(slide_window_df, slide_window_size, UIC, featu
     items_in_cat_df = items_in_cat_df.groupby('item_category', sort=False, as_index=False).size()
     items_in_cat_df = items_in_cat_df.reset_index()
     items_in_cat_df.rename(columns={0:"item_cnt_in_cat"}, inplace=True) # 每个category内有多少item
-    
+
     # category 上各个行为的次数平均到每个item上的次数
     category_behavior_cnt = pd.merge(category_behavior_cnt, items_in_cat_df, how='left', on='item_category')
-    category_behavior_cnt['category_view_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_view_cnt'], category_behavior_cnt['item_cnt_in_cat'])
-    category_behavior_cnt['category_fav_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_fav_cnt'], category_behavior_cnt['item_cnt_in_cat'])
-    category_behavior_cnt['category_cart_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_cart_cnt'], category_behavior_cnt['item_cnt_in_cat'])
-    category_behavior_cnt['category_sale_vol_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_sale_volume'], category_behavior_cnt['item_cnt_in_cat'])
+    category_behavior_cnt['category_view_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_%d_day_view_cnt' % slide_window_size], category_behavior_cnt['item_cnt_in_cat'])
+    category_behavior_cnt['category_fav_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_%d_day_fav_cnt' % slide_window_size], category_behavior_cnt['item_cnt_in_cat'])
+    category_behavior_cnt['category_cart_cnt_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_%d_day_cart_cnt' % slide_window_size], category_behavior_cnt['item_cnt_in_cat'])
+    category_behavior_cnt['category_sale_vol_mean_on_item'] = SeriesDivision(category_behavior_cnt['category_%d_day_sale_volume' % slide_window_size], category_behavior_cnt['item_cnt_in_cat'])
     del category_behavior_cnt['item_cnt_in_cat']
     
     feature_matrix = pd.merge(feature_matrix, category_behavior_cnt, how='left', on=['item_category'])

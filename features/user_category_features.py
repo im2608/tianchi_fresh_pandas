@@ -29,6 +29,7 @@ def feature_user_category_opt_before1day(slide_window_df, behavior_type, feature
 # 购买/收藏
 # 购买/购物车
 # 用户在过去 [1，2，3，4]天（浏览， 收藏， 购物车， 购买）的次数
+# user 在前一天 最早，最晚操作 category的hour
 def feature_user_category_behavior_ratio(slide_window_df, slide_window_size, UIC, feature_matrix_df):
 
     user_behavior_df = feature_user_behavior_ratio(slide_window_df, slide_window_size, UIC, 'item_category')

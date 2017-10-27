@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import time
 
+from global_variables import *
 
 def convertDatatimeToStr(opt_datatime):
     return "%04d-%02d-%02d" % (opt_datatime.year, opt_datatime.month, opt_datatime.day)
@@ -72,3 +73,19 @@ def extracting_Y(UI, label_day_df):
     Y = pd.merge(UI, Y, how='left', on=['user_id', 'item_id'])
     Y.fillna(0, inplace=True)
     return Y
+
+
+def get_output_filename(index, use_rule):
+    if (use_rule):
+        prob_output_filename = r"%s\..\output\single_window_forecast_with_prob_%s_%d_with_rule.csv" % (runningPath, datetime.date.today(), index)
+        submit_output_filename = r"%s\..\output\single_window_forecast_submit_%s_%d_with_rule.csv" % (runningPath, datetime.date.today(), index)
+    else:
+        prob_output_filename = r"%s\..\output\single_window_forecast_with_prob_%s_%d_without_rule.csv" % (runningPath, datetime.date.today(), index)
+        submit_output_filename = r"%s\..\output\single_window_forecast_submit_%s_%d_without_rule.csv" % (runningPath, datetime.date.today(), index)
+        
+    return prob_output_filename, submit_output_filename
+
+def get_feature_name_for_model(features):
+    s = set(features)
+    r = set(['user_id', 'item_id', 'item_category', 'buy'])
+    return list(s-r)

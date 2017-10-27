@@ -17,14 +17,17 @@ from corss_features import *
 from sklearn import preprocessing
 
 
-def extracting_features(slide_window_df, slide_window_size):
+def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     
-    UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
+    if (fcsted_item_df is not None):
+        UIC = slide_window_df[['user_id', 'item_id', 'item_category']][np.in1d(slide_window_df['item_id'], fcsted_item_df['item_id'])].drop_duplicates()
+    else:
+        UIC = slide_window_df[['user_id', 'item_id', 'item_category']].drop_duplicates()
+
     UIC.index = range(np.shape(UIC)[0])
 
     feature_matrix_df = pd.DataFrame()
     feature_matrix_df = pd.concat([feature_matrix_df, UIC], axis = 1)
-
 
     #############################################################################################
     #############################################################################################
@@ -137,17 +140,19 @@ def extracting_features(slide_window_df, slide_window_size):
     print("%s extracting crossing features" % (getCurrentTime()))
     
     # item 的销量占 category 的销量的比例, 以及item 销量在category销量中的排序
-    feature_matrix_df = feature_sales_ratio_itme_category(feature_matrix_df)
+    feature_matrix_df = feature_sales_ratio_itme_category(feature_matrix_df, slide_window_size)
     
     # item 的1st, last behavior 与 category 的1st， last 相差的天数
     feature_1st_last_IC(feature_matrix_df)
     
 
     # 商品热度 浏览，收藏，购物车，购买该商品的用户数/浏览，收藏，购物车，购买同类型商品的总用户数
-    feature_matrix_df = feature_item_popularity(feature_matrix_df)
+    feature_matrix_df = feature_item_popularity(feature_matrix_df, slide_window_size)
 
     # item的[fav, cart, buy]转化率/category的购买转化率
     feature_matrix_df = feature_item_conversion(feature_matrix_df)
+    
+    feature_matrix_df = feature_item_cnt_ratio_on_category(feature_matrix_df, slide_window_size)
 
     print("After extracting cross features, shape is ", feature_matrix_df.shape)
     #############################################################################################
@@ -157,10 +162,10 @@ def extracting_features(slide_window_df, slide_window_size):
     #############################################################################################
     print("%s feature matrix shape is %s" % (getCurrentTime(), feature_matrix_df.shape))
     
-    del feature_matrix_df['user_id']
-    del feature_matrix_df['item_id']
-    del feature_matrix_df['item_category']
-    feature_matrix_df = preprocessing.scale(feature_matrix_df)
+#     del feature_matrix_df['user_id']
+#     del feature_matrix_df['item_id']
+#     del feature_matrix_df['item_category']
+#     feature_matrix_df = pd.DataFrame(preprocessing.scale(feature_matrix_df))
 
     return feature_matrix_df, UIC
 
