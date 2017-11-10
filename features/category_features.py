@@ -58,3 +58,13 @@ def feature_category_user_cnt_on_behavior(slide_window_df, slide_window_size, UI
 
 
 
+
+# category 在一周内每天各个操作的次数
+def feature_category_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df):
+    cat_behavior_cnt_on_weekday_df = feature_behavior_cnt_on_weekday(slide_window_df, 'item_category')
+    cat_behavior_cnt_on_weekday_df.rename(columns=rename_category_col_name, inplace=True)
+
+    feature_matrix_df = pd.merge(feature_matrix_df, cat_behavior_cnt_on_weekday_df, how='left', on='item_category', sort=False)
+    feature_matrix_df.fillna(0, inplace=True)
+    return feature_matrix_df
+

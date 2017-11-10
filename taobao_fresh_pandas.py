@@ -23,24 +23,31 @@ from sklearn.metrics import classification_report
 from sklearn.grid_search import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.externals import joblib
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 
-# 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-def rule_fav_cart_before_1day(forecasting_window_df, Y_forecasted):
-    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 3, Y_forecasted)
-    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 4, Y_forecasted)
-    Y_forecasted.loc[(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0), 'buy_prob'] = 1
 
-    return Y_forecasted
+
+def splitTo50_50(feature_matrix_df):
+    # 采样50%用于训练LR
+    samples_for_LR = feature_matrix_df.sample(frac=0.5, axis=0)
+    
+    # 取另外的50%用LR来预测， 预测后的结果作为 Y_for_gbdt 用于训练gbdt
+    index_for_gbdt = feature_matrix_df.index.difference(samples_for_LR.index)
+    samples_for_gbdt = feature_matrix_df.ix[index_for_gbdt]
+    
+    samples_for_LR.index = range(samples_for_LR.shape[0])
+    samples_for_gbdt.index = range(samples_for_gbdt.shape[0])
+
+    return samples_for_LR, samples_for_gbdt
 
 def takeSamplesForTraining(feature_matrix_df):
     pos = feature_matrix_df[feature_matrix_df['buy'] == 1]
+    print("%s POS:NAG = 1:%d (%d : %d)" % (getCurrentTime(), g_nag_times, pos.shape[0], pos.shape[0] * g_nag_times))
     nag = feature_matrix_df[feature_matrix_df['buy'] == 0].sample(n = pos.shape[0] * g_nag_times, axis=0)
-
+ 
     # 正负样本的比例 1:g_nag_times
     samples = pd.concat([pos, nag], axis=0)
-    
+
     # 采样50%用于训练LR
     samples_for_LR = samples.sample(frac=0.5, axis=0)
     
@@ -48,9 +55,10 @@ def takeSamplesForTraining(feature_matrix_df):
     index_for_gbdt = samples.index.difference(samples_for_LR.index)
     samples_for_gbdt = samples.ix[index_for_gbdt]
     
-    print("%s samples_for_LR has %d POS, samples_for_gbdt has %d POS" % (getCurrentTime(), 
-                                                                         samples_for_LR[samples_for_LR['buy']==1].shape[0], 
-                                                                         samples_for_gbdt[samples_for_gbdt['buy']==1].shape[0]))
+    print("%s samples_for_LR has %d/%d POS, samples_for_gbdt has %d/%d POS" % 
+          (getCurrentTime(),
+           samples_for_LR[samples_for_LR['buy']==1].shape[0], samples_for_LR.shape[0],
+           samples_for_gbdt[samples_for_gbdt['buy']==1].shape[0], samples_for_gbdt.shape[0]))
     return samples_for_LR, samples_for_gbdt
 
 def trainingModel(feature_matrix_df):
@@ -77,26 +85,37 @@ def trainingModel(feature_matrix_df):
     i = 0
     logiReg = LogisticRegression(**lr_params)    
     while (i < run_times):
-        samples_for_LR, samples_for_gbdt = takeSamplesForTraining(feature_matrix_df)
-        features_for_model = samples_for_LR[features_names_for_model]
+        samples_for_LR, samples_for_gbdt = splitTo50_50(feature_matrix_df)
+        features_for_LR = samples_for_LR[features_names_for_model]
 #         features_for_model = min_max_scaler.fit_transform(samples_for_LR[features_names_for_model])
-        
-        logiReg.fit(features_for_model, samples_for_LR['buy'])
-        Y_pred_gbdt = logiReg.predict(samples_for_gbdt[features_names_for_model])   
 
-        if (Y_pred_gbdt.sum() == 0):
+        print(getCurrentTime(), "training LR...")
+        logiReg.fit(features_for_LR, samples_for_LR['buy'])
+        
+        # 使用LR过滤数据, 只将预测为正的数据传给gbdt训练
+        Y_fcsted_gbdt = pd.DataFrame(logiReg.predict(samples_for_gbdt[features_names_for_model]), columns=['buy'])
+
+        if (Y_fcsted_gbdt['buy'].sum() == 0):
             print("%s LogisticRegression predicted 0 POS, trying to resample" % getCurrentTime())
             i += 1
         else:
             print("%s LogisticRegression() fit the training date: " % getCurrentTime())
-            print(classification_report(samples_for_gbdt['buy'], Y_pred_gbdt, target_names=["not buy", "buy"]))
-            print("%s confusion matrix: " % getCurrentTime())
-            print(confusion_matrix(samples_for_gbdt['buy'], Y_pred_gbdt))
-            break
+            print(classification_report(samples_for_gbdt['buy'], Y_fcsted_gbdt['buy'], target_names=["not buy", "buy"]))
+            print("%s confusion matrix of LR: " % getCurrentTime())
+            print(confusion_matrix(samples_for_gbdt['buy'],  Y_fcsted_gbdt['buy']))
 
-    if (Y_pred_gbdt.sum() == 0):
-        print("%s, after %d times fitting, LogisticRegression() still predicted 0 POS, exiting" % (getCurrentTime(), run_times))
-        exit(0)
+            # 使用LR过滤数据, 只将预测为正的数据传给gbdt训练
+            fcsted_index = Y_fcsted_gbdt[Y_fcsted_gbdt['buy'] == 1].index
+            samples_for_gbdt['buy'] = 0
+            samples_for_gbdt.loc[fcsted_index, 'buy'] = 1
+            
+            pos = samples_for_gbdt[samples_for_gbdt['buy'] == 1]
+            print("%s POS:NAG = 1:%d (%d : %d)" % (getCurrentTime(), g_nag_times, pos.shape[0], pos.shape[0] * g_nag_times))
+            nag = samples_for_gbdt[samples_for_gbdt['buy'] == 0].sample(n = pos.shape[0] * g_nag_times, axis=0)
+         
+            # 正负样本的比例 1:g_nag_times
+            samples_for_gbdt = pd.concat([pos, nag], axis=0)
+            break
 
     gbcf = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
                                       subsample=1.0, 
@@ -105,10 +124,19 @@ def trainingModel(feature_matrix_df):
                                       min_samples_leaf=1,
                                       max_depth=3) # gride searched to 3
 
-    features_for_model = samples_for_gbdt[features_names_for_model]
-#     features_for_model = min_max_scaler.fit_transform(samples_for_gbdt[features_names_for_model])
+    features_for_gbdt = samples_for_gbdt[features_names_for_model]
+#     features_for_gbdt = min_max_scaler.fit_transform(samples_for_gbdt[features_names_for_model])
 
-    gbcf.fit(features_for_model, Y_pred_gbdt)
+    print(getCurrentTime(), "training GBDT...")
+    gbcf.fit(features_for_gbdt, samples_for_gbdt['buy'])
+    
+    features_for_model = samples_for_LR[features_names_for_model]
+    gbcf_pre = gbcf.predict(features_for_model)
+    
+    print("%s GradientBoostingClassifier() fit the training date: " % getCurrentTime())
+    print(classification_report(samples_for_LR['buy'], gbcf_pre, target_names=["not buy", "buy"]))
+    print("%s confusion matrix of GBDT: " % getCurrentTime())
+    print(confusion_matrix(samples_for_LR['buy'], gbcf_pre))
 
     return logiReg, gbcf
 
@@ -151,43 +179,28 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
 
     return logiReg, gbcf
 
-def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slide_window_size, fcsted_item_df):
-    if (fcsted_item_df is not None):
-        slide_window_df = raw_data_df[(raw_data_df['time'] >= convertDatatimeToStr(window_start_date))&
-                                      (raw_data_df['time'] < convertDatatimeToStr(window_end_date)) &
-                                      (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))]
-    else:
-        slide_window_df = raw_data_df[(raw_data_df['time'] >= convertDatatimeToStr(window_start_date))&
-                                      (raw_data_df['time'] < convertDatatimeToStr(window_end_date))]
-
-    slide_window_df = remove_user_item_only_buy(slide_window_df)
-    slide_window_df.index = range(slide_window_df.shape[0])  # 重要！！
-
-    slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df['time'], slide_window_size, window_end_date)
-
-    return slide_window_df
-
-
 def single_window():
 
     slide_window_size = 30
-    data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
-#     data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
+#     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
+#     data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
+
     print(getCurrentTime(), "reading csv ", data_filename)
-    raw_data_df = pd.read_csv(data_filename)
+    raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
 
     fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
-    fcsted_item_df = pd.read_csv(fcsted_item_filename)
+    fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
 
-    training_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
+    training_date = datetime.datetime.strptime('2014-12-17', "%Y-%m-%d")
     window_start_date = training_date - datetime.timedelta(days=slide_window_size)
 
     # training...
     logiReg, gbcf = calculate_slide_window(raw_data_df, slide_window_size, window_start_date, training_date)
     print("LogisticRegression() params: ", logiReg.get_params())
     print("GradientBoostingClassifier() params: ", gbcf.get_params())
-    
+
     # forecasting...
     forecasting_date = training_date + datetime.timedelta(days=1)
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
@@ -206,8 +219,7 @@ def single_window():
     # 使用LR过滤数据, 只将预测为正的数据传给gbdt预测
     Y_fcsted_gbdt = pd.DataFrame(logiReg.predict_proba(features_for_model), columns=['not buy', 'buy'])    
     
-    min_prob = 0.7
-    fcsted_index = Y_fcsted_gbdt[Y_fcsted_gbdt['buy'] >= min_prob].index
+    fcsted_index = Y_fcsted_gbdt[Y_fcsted_gbdt['buy'] >= g_min_prob].index
     features_for_model = features_for_model.ix[fcsted_index]    
     features_for_model.index = range(features_for_model.shape[0])
     
@@ -221,13 +233,13 @@ def single_window():
     Y_fcsted_lable = pd.DataFrame(Y_fcsted, columns=['not_buy_prob', 'buy_prob'])
     Y_fcsted_lable = pd.concat([fcsted_UI, Y_fcsted_lable], axis=1)
     
-    use_rule = 0
+    use_rule = 1
     if (use_rule):
         # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
         Y_fcsted_lable = rule_fav_cart_before_1day(forecasting_window_df, Y_fcsted_lable)
 
     if (forecasting_date_str == '2014-12-19'):
-        UI_buy_allinfo = Y_fcsted_lable[Y_fcsted_lable['buy_probs'] >= min_prob]
+        UI_buy_allinfo = Y_fcsted_lable[Y_fcsted_lable['buy_prob'] >= g_min_prob]
         index = 0
         prob_output_filename, submit_output_filename = get_output_filename(index, use_rule)
         while (os.path.exists(submit_output_filename)):
@@ -237,24 +249,33 @@ def single_window():
         UI_buy_allinfo.to_csv(prob_output_filename, index=False)
         UI_buy_allinfo[['user_id', 'item_id']].to_csv(submit_output_filename, index=False)
     else:
-        Y_true_label = extracting_Y(fcsted_UI, raw_data_df[raw_data_df['time'] == forecasting_date_str][['user_id', 'item_id', 'behavior_type']])
-        Y_fcsted_lable['buy'] = 0
-        Y_fcsted_lable.loc[Y_fcsted_lable['buy_prob'] >= min_prob, 'buy'] = 1
+        Y_true_UI = raw_data_df[(raw_data_df['time'] == forecasting_date_str)&\
+                                (raw_data_df['behavior_type'] == 4)].drop_duplicates()
+#                                 (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
 
-#         f1 = f1_score(Y_true_label['buy'], Y_fcsted_lable['buy'], average='macro')
-#         print("F1 for %s, %.4f" % (forecasting_date_str, f1))
-        print("final report :", getCurrentTime())
-        print(classification_report(Y_true_label['buy'], Y_fcsted_lable['buy'], target_names=["not buy", "buy"]))
-        print("confusion matrix: ")
-        print(confusion_matrix(Y_true_label['buy'], Y_fcsted_lable['buy']))
+        Y_fcsted_UI = Y_fcsted_lable[Y_fcsted_lable['buy_prob'] >= g_min_prob]
+        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI)
+        
+        print("%s precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
 
     return 0
 
+def slide_model_ensemble(feature_matrix_df, slide_window_models):
+    return
 
 def convert_feature_mat_to_leaf_node(feature_matrix_df, slide_window_models):
     X_leafnode_mat = None
-    for gbcf_mod in slide_window_models:
-        X_mat_enc = gbcf_mod.apply(feature_matrix_df)[:, :, 0]
+    features_names_for_model = get_feature_name_for_model(feature_matrix_df.columns)
+    features_for_model = feature_matrix_df[features_names_for_model]
+
+    for (logiReg, gbcf) in slide_window_models:
+#         Y_fcsted_gbdt = pd.DataFrame(logiReg.predict_proba(features_for_model), columns=['not buy', 'buy'])    
+#     
+#         fcsted_index = Y_fcsted_gbdt[Y_fcsted_gbdt['buy'] >= g_min_prob].index
+#         features_for_model = features_for_model.ix[fcsted_index]    
+#         features_for_model.index = range(features_for_model.shape[0])
+
+        X_mat_enc = gbcf.apply(features_for_model)[:, :, 0]
 
         if (X_leafnode_mat is None):
             X_leafnode_mat = X_mat_enc
@@ -264,16 +285,20 @@ def convert_feature_mat_to_leaf_node(feature_matrix_df, slide_window_models):
     return X_leafnode_mat
 
 def slide_window():
-    data_filename = r"%s\..\input\preprocessed_user_data_no_hour.csv" % (runningPath)
-    print(getCurrentTime(), "reading csv ", data_filename)
-    raw_data_df = pd.read_csv(data_filename)
     
+#     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
+#     data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
+
+    print(getCurrentTime(), "reading csv ", data_filename)
+    raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
+
     fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
-    fcsted_item_df = pd.read_csv(fcsted_item_filename)
+    fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
 
-    slide_window_size = 4
-    start_date = datetime.datetime.strptime('2014-12-10', "%Y-%m-%d")
+    slide_window_size = 7
+    start_date = datetime.datetime.strptime('2014-12-07', "%Y-%m-%d")
     end_date = datetime.datetime.strptime('2014-12-16', "%Y-%m-%d")
 
     print("%s slide window size %d, start date %s, end date %s" % 
@@ -283,9 +308,9 @@ def slide_window():
     slide_window_models = []
     while (checking_date < end_date):
 
-        gbcf = calculate_slide_window(raw_data_df, slide_window_size, start_date, checking_date, fcsted_item_df)
+        logiReg, gbcf = calculate_slide_window(raw_data_df, slide_window_size, start_date, checking_date)
         
-        slide_window_models.append(gbcf)
+        slide_window_models.append((logiReg, gbcf))
 
         start_date = start_date + datetime.timedelta(days=1)
         checking_date = start_date + datetime.timedelta(days = slide_window_size)
@@ -293,15 +318,40 @@ def slide_window():
     checking_date_str = convertDatatimeToStr(checking_date)
     training_window_df = create_slide_window_df(raw_data_df, start_date, checking_date, slide_window_size, fcsted_item_df)
 
-    training_matrix_df, training_UI = extracting_features(training_window_df, slide_window_size)
+    training_matrix_df, training_UI = extracting_features(training_window_df, slide_window_size, fcsted_item_df)
     Y_training_label = extracting_Y(training_UI, raw_data_df[raw_data_df['time'] == checking_date_str][['user_id', 'item_id', 'behavior_type']])
 
     # 滑动窗口训练出的model分别对[ 12-18 - slide_window-size, 12-18] 的数据生成叶节点, 生成一个大的特征矩阵，然后交给LR进行训练
     X_leafnode_mat = convert_feature_mat_to_leaf_node(training_matrix_df, slide_window_models)
+    
+    X_leafnode_mat = pd.concat([X_leafnode_mat, Y_training_label], axis=1)
+    
+    samples_for_LR, samples_for_gbdt = takeSamplesForTraining(X_leafnode_mat)
+    Y_for_LR = samples_for_LR['buy']
+    del samples_for_LR['buy']
+    
+    Y_for_gbdt = samples_for_gbdt['buy']
+    del samples_for_gbdt['buy']
 
     logisticReg = LogisticRegression()
     
-    logisticReg.fit(X_leafnode_mat, Y_training_label['buy'])
+    logisticReg.fit(samples_for_LR, Y_for_LR)
+    
+    Y_fcsted_gbdt = pd.DataFrame(logiReg.predict_proba(samples_for_gbdt), columns=['not buy', 'buy'])    
+
+    fcsted_index = Y_fcsted_gbdt[Y_fcsted_gbdt['buy'] >= g_min_prob].index
+    samples_for_gbdt = samples_for_gbdt.ix[fcsted_index]    
+    samples_for_gbdt.index = range(samples_for_gbdt.shape[0])
+    
+    gbcf = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
+                                  subsample=1.0, 
+                                  criterion='friedman_mse', 
+                                  min_samples_split=100, 
+                                  min_samples_leaf=1,
+                                  max_depth=3) # gride searched to 3
+    
+    gbcf.fit(samples_for_gbdt, Y_fcsted_gbdt['buy'])
+
 
     fcsting_window_start_date = start_date + datetime.timedelta(days=1)
     fcsting_date = fcsting_window_start_date + datetime.timedelta(days = slide_window_size)
@@ -330,7 +380,7 @@ def slide_window():
 
 
 def run_in_ipython():
-    df = pd.read_csv(r'F:\doc\ML\taobao\fresh_comp_offline\taobao_fresh_pandas\input\preprocessed_user_data_fcsted_item_only.csv')
+    df = pd.read_csv(r'F:\doc\ML\taobao\fresh_comp_offline\taobao_fresh_pandas\input\preprocessed_user_data_sold_item_only.csv')
     slide_window_df = df[(df['time'] < '2014-12-18')&(df['time'] >= '2014-12-11')]
     start_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
     

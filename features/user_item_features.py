@@ -65,6 +65,15 @@ def feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_
 
 
 
+# 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
+def rule_fav_cart_before_1day(forecasting_window_df, Y_forecasted):
+    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 3, Y_forecasted)
+    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 4, Y_forecasted)
+    Y_forecasted.loc[(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0), 'buy_prob'] = 1
+    print("%s rule forecasted %d items" % 
+          (getCurrentTime(), Y_forecasted[(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0)].shape[0]))
+
+    return Y_forecasted
 
 
 

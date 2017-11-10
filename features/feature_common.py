@@ -207,17 +207,6 @@ def behavior_cnt_in_days(slide_window_df, dayoffset, item_or_category):
                                     4:'%d_day_sale_volume' % dayoffset}, inplace=True)
     return behavior_cnt_df
 
-def behavior_cnt_divides_mean(behavior_cnt_df, behavior_mean_df):
-    dividision = pd.DataFrame()
-    dividision['view_cnt_divides_mean'] = SeriesDivision(behavior_cnt_df['view_cnt'], behavior_mean_df['view_cnt_mean'])
-    dividision['fav_cnt_divides_mean'] = SeriesDivision(behavior_cnt_df['fav_cnt'], behavior_mean_df['view_cnt_mean'])
-    dividision['cart_cnt_divides_mean'] = SeriesDivision(behavior_cnt_df['cart_cnt'], behavior_mean_df['view_cnt_mean'])
-    dividision['sale_volume_divides_mean'] = SeriesDivision(behavior_cnt_df['sale_volume'], behavior_mean_df['sale_volume_mean'])
-    
-    dividision.index = range(dividision.shape[0])
-    
-    return dividision
-
 
 # item/category 上各个行为的次数, 
 # 每日的平均次数，
@@ -281,7 +270,7 @@ def feature_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, item_o
     user_cnt_on_behavior_df['buy_conversion'] =  SeriesDivision(user_cnt_on_behavior_df['%d_day_user_cnt_on_sale_volume' % slide_window_size], 
                                                                 user_cnt_on_behavior_df['%d_day_user_cnt_on_view' % slide_window_size])
 
-    for dayoffset in [1,2,3, 4]:
+    for dayoffset in [1,2,3,4]:
         user_cnt_on_behavior_of_n_days = get_user_cnt_on_behavior(slide_window_df, item_or_category, dayoffset)
         user_cnt_on_behavior_df = pd.merge(user_cnt_on_behavior_df, user_cnt_on_behavior_of_n_days, on=item_or_category, how='left')
         user_cnt_on_behavior_df.fillna(0, inplace=True)
@@ -289,8 +278,21 @@ def feature_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, item_o
     return user_cnt_on_behavior_df
 
 
-
-
-
-
+# user/item/category 在一周内每天各个操作的次数
+def feature_behavior_cnt_on_weekday(slide_window_df, user_or_item_or_category):
+    behavior_cnt_on_weekday_df = slide_window_df[[user_or_item_or_category, 'behavior_type', 'weekday']]
+    behavior_cnt_on_weekday_df = behavior_cnt_on_weekday_df.groupby([user_or_item_or_category, 'weekday', 'behavior_type'], sort=False, as_index=False)
+    behavior_cnt_on_weekday_df = behavior_cnt_on_weekday_df.size().unstack() # 展开 behavior_type
+    behavior_cnt_on_weekday_df.fillna(0, inplace=True)
+    behavior_cnt_on_weekday_df = behavior_cnt_on_weekday_df.unstack() # 展开 weekday
+    behavior_cnt_on_weekday_df.fillna(0, inplace=True)
+    behavior_cnt_on_weekday_df.reset_index(inplace=True)
+    
+    behavior_cnt_name = {1:'view_cnt_at_weekday_', 2:'fav_cnt_at_weekday_', 3:'cart_cnt_at_weekday_', 4:'buy_cnt_at_weekday_'}  
+    arr = [behavior_cnt_on_weekday_df[user_or_item_or_category]]
+    for behavior in [1,2,3,4]:
+        arr.append(behavior_cnt_on_weekday_df[behavior].rename(columns=lambda weekday: "%s%d" % (behavior_cnt_name[behavior], weekday)))
+    
+    behavior_cnt_on_weekday_df = pd.concat(arr, axis=1)    
+    return behavior_cnt_on_weekday_df
 

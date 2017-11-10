@@ -42,5 +42,5 @@ ONLINE_FORECAST_DATE = datetime.datetime.strptime("2014-12-19", "%Y-%m-%d").date
 g_only_from_test_set = False
 
 #正负样本比例 1： g_nag_times
-g_nag_times = 5
-
+g_nag_times = 10
+g_min_prob = 0.7 

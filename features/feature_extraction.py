@@ -52,7 +52,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
     feature_matrix_df = feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
     
-    print("After extracting user-item features, shape is ", feature_matrix_df.shape)
+    print("%s After extracting user-item features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     
 
     #############################################################################################
@@ -78,7 +78,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     #用户第一次购买 category 前， 在 caetory 上各个 behavior 的数量, 3个特征
     feature_matrix_df = feature_user_category_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
     
-    print("After extracting user-category features, shape is ", feature_matrix_df.shape)
+    print("%s After extracting user-category features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     
     #############################################################################################
     #############################################################################################
@@ -92,10 +92,13 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     # category 上各个行为的次数,以及销量(即buy的次数)的排序
     feature_matrix_df = feature_category_behavior_cnt(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
-    # category 上各个行为用户的数量
+    # category 上各个行为用户的数量    
     feature_matrix_df = feature_category_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
+    
+    # category 在一周内每天各个操作的次数
+    feature_matrix_df = feature_category_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
 
-    print("After extracting category features, shape is ", feature_matrix_df.shape)
+    print("%s After extracting category features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     #############################################################################################
     #############################################################################################
     # item 特征
@@ -111,8 +114,10 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     # item 上各个行为用户的数量
     feature_matrix_df = feature_item_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
+    # item 在一周内每天各个操作的次数
+    feature_matrix_df = feature_item_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
     
-    print("After extracting item features, shape is ", feature_matrix_df.shape)
+    print("%s After extracting item features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     
     #############################################################################################
     #############################################################################################
@@ -125,11 +130,18 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     # 用户购买率：购买的item/操作过的item    
     feature_matrix_df = feature_how_many_behavior_user(slide_window_df, UIC, feature_matrix_df)
     
-    
+    # user 浏览，收藏，购物车，购买了多少不同的item
+    # user 浏览，收藏，购物车，购买的不同 item 数量 / user 所有操作过的 item 数量
     feature_matrix_df = feature_how_many_itme_user_opted(slide_window_df, UIC, feature_matrix_df)
     
+    # user 在前[1,2,3,4, slide_window_size]天24小时上各个操作的次数
+    for dayoffset in [1,2,3,4, slide_window_size]:
+        feature_matrix_df = feature_user_behavior_before_1day_24hour(slide_window_df, dayoffset, UIC, feature_matrix_df)
     
-    print("After extracting user features, shape is ", feature_matrix_df.shape)
+    # user 在一周内每天各个操作的次数
+    feature_matrix_df = feature_user_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
+    
+    print("%s After extracting user features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
 
 
     #############################################################################################
@@ -154,7 +166,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     
     feature_matrix_df = feature_item_cnt_ratio_on_category(feature_matrix_df, slide_window_size)
 
-    print("After extracting cross features, shape is ", feature_matrix_df.shape)
+    print("%s After extracting cross features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     #############################################################################################
     #############################################################################################
     # 特征结束
