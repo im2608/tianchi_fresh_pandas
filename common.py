@@ -113,7 +113,7 @@ def calculate_POS_F1(Y_true_UI, Y_fcsted_UI):
     
     f1 = 2 * p * r / (p + r)
     
-#     r = fp/(f-2p)
+#     r = fp/(2p-f)
 
     return p, r, f1
 

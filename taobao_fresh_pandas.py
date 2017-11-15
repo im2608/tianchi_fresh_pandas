@@ -12,7 +12,6 @@ import csv
 import datetime
 from global_variables import *
 from feature_extraction import *
-from greenlet import getcurrent
 
 from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
 from sklearn.cross_validation import StratifiedKFold 

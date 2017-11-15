@@ -23,7 +23,7 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.externals import joblib
 from sklearn.metrics import confusion_matrix
-
+import pickle
 
 
 def splitTo50_50(feature_matrix_df):
@@ -89,17 +89,25 @@ def trainingModel(feature_matrix_df):
 #     print("%s confusion matrix of GBDT: " % getCurrentTime())
 #     print(confusion_matrix(samples_for_1['buy'], gbcf_pre))
 
+
+
     return gbcf_1, gbcf_2
 
-def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, checking_date):    
+def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, checking_date):
+    start_date_str = convertDatatimeToStr(window_start_date)
     checking_date_str = convertDatatimeToStr(checking_date)
     print("%s handling slide window %s" % (getCurrentTime(), checking_date_str))
 
-    model_filename = r"%s\..\featuremat_and_model\model_%s_%d.m" % (runningPath, checking_date_str, slide_window_size)
-    if (os.path.exists(model_filename)):
-        print("%s loading model from model_%s_%d.m" % (getCurrentTime(), checking_date_str, slide_window_size))
-        gbcf = joblib.load(model_filename)
-        return gbcf
+    model_1_filename = r"%s\..\featuremat_and_model\model_1_%s_%s_%d.m" % (runningPath, start_date_str, checking_date_str, slide_window_size)
+    model_2_filename = r"%s\..\featuremat_and_model\model_2_%s_%s_%d.m" % (runningPath, start_date_str, checking_date_str, slide_window_size)
+
+#     if (os.path.exists(model_1_filename)):
+#         print("%s loading model from %s" % (getCurrentTime(), model_1_filename))
+#         gbcf_1 = joblib.load(model_1_filename)
+#          
+#         print("%s loading model from %s" % (getCurrentTime(), model_2_filename))
+#         gbcf_2 = joblib.load(model_1_filename)
+#         return gbcf_1, gbcf_2
 
     slide_window_df = create_slide_window_df(raw_data_df, window_start_date, checking_date, slide_window_size, None)
     slide_UI = slide_window_df[['user_id', 'item_id']].drop_duplicates()
@@ -127,6 +135,13 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
 #         joblib.dump(gbcf, model_filename)
 
     del slide_window_df
+    
+#     print("%s dumping model 1to %s" % (getCurrentTime(), model_1_filename))
+#     f = open(model_1_filename,'wb')
+#     pickle.dump(gbcf_1, f)
+#     print("%s dumping model 2 to %s" % (getCurrentTime(), model_2_filename))
+#     f = open(model_2_filename,'wb')
+#     joblib.dump(gbcf_2, f)
 
     return gbcf_1, gbcf_2
 
@@ -228,8 +243,8 @@ def slide_window():
     fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
 
     slide_window_size = 7
-    start_date = datetime.datetime.strptime('2014-12-06', "%Y-%m-%d")
-    end_date = datetime.datetime.strptime('2014-12-15', "%Y-%m-%d")
+    start_date = datetime.datetime.strptime('2014-12-07', "%Y-%m-%d")
+    end_date = datetime.datetime.strptime('2014-12-18', "%Y-%m-%d")
 
     print("%s slide window size %d, start date %s, end date %s" % 
           (getCurrentTime(), slide_window_size, convertDatatimeToStr(start_date), convertDatatimeToStr(end_date)))

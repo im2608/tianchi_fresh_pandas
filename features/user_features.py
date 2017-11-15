@@ -88,9 +88,9 @@ def feature_user_behavior_before_1day_24hour(slide_window_df, dayoffset, UIC, fe
     user_behavior_cnt_24hour_arr = [user_behavior_cnt_24hour['user_id']]
     for behavior in [1,2,3,4]:
         user_behavior_cnt_24hour_arr.append(user_behavior_cnt_24hour[behavior].rename(columns=lambda hour: "%d_day_%s%d" % (dayoffset, behavior_cnt_name[behavior], hour)))
-    
+
     user_behavior_cnt_24hour = pd.concat(user_behavior_cnt_24hour_arr, axis=1)
-    
+
     feature_matrix = pd.merge(feature_matrix, user_behavior_cnt_24hour, how='left', on='user_id', sort=False)
     feature_matrix.fillna(0, inplace=True)
     return feature_matrix

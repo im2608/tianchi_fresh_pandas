@@ -130,7 +130,6 @@ def preprocess_data():
             if (item_id in item_sold_dict and item_id not in item_1212_only_set):
                 preprocessed_outputFile_sold_item_only.write("%s,%s,%d,%s,%s,%s,%d\n" % 
                                                              (user_id, item_id, behavior_type, item_category, behavior_date,behavior_hour,weekday))
-
         index += 1
 
     data_filehandle.close()
