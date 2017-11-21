@@ -96,8 +96,8 @@ def get_feature_name_for_model(features):
 
 # 计算正例的 F1
 def calculate_POS_F1(Y_true_UI, Y_fcsted_UI):
-    UI_true = Y_true_UI.apply(lambda x : "%s,%s" % (str(x['user_id']), str(x['item_id'])), axis=1)
-    UI_pred = Y_fcsted_UI.apply(lambda x : "%s,%s" % (str(np.int64(x['user_id'])), str(np.int64(x['item_id']))), axis=1)
+    UI_true = Y_true_UI.apply(lambda x : "%s,%s" % (x['user_id'], x['item_id']), axis=1)
+    UI_pred = Y_fcsted_UI.apply(lambda x : "%s,%s" % (x['user_id'],x['item_id']), axis=1)
     
     UI_true = set(UI_true.values)
     UI_pred = set(UI_pred.values)

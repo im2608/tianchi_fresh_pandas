@@ -45,20 +45,25 @@ def main():
     start_date_str = sys.argv[1].split("=")[1]
     end_date_str = sys.argv[2].split("=")[1]
     window_size = int(sys.argv[3].split("=")[1])
-    
+
     window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     checking_date = window_start_date + datetime.timedelta(days=window_size)
-    
+
     end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
-     
+
     forecasting_date = end_date + datetime.timedelta(days=1)
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
-     
+
     while (checking_date <= end_date):
+        if (checking_date.month == 12 and checking_date.day == 12):
+            window_start_date = window_start_date + datetime.timedelta(days=1)
+            checking_date = window_start_date + datetime.timedelta(days = window_size)
+            continue
+
         window_start_date_str = convertDatatimeToStr(window_start_date)
-           
+ 
         submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
-   
+     
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
         if (len(runningSubProcesses) == 10):
@@ -70,7 +75,6 @@ def main():
                     break
                 if (len(runningSubProcesses) == 0):
                     break
-   
     while True:
         start_end_date_str = waitSubprocesses()
         if ((start_end_date_str[0] != 0 and start_end_date_str[1] != 0)):
@@ -81,10 +85,17 @@ def main():
 
     window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     checking_date = window_start_date + datetime.timedelta(days=window_size)
+    
+    slide_window_wieght = get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str)
 
     ui_fcsting_cnt = {}
     slide_windows = 0
     while (checking_date <= end_date):
+        if (checking_date.month == 12 and checking_date.day == 12):
+            window_start_date = window_start_date + datetime.timedelta(days=1)
+            checking_date = window_start_date + datetime.timedelta(days = window_size)
+            continue
+            
         window_start_date_str = convertDatatimeToStr(window_start_date)
         checking_date_str = convertDatatimeToStr(checking_date)
 
@@ -99,12 +110,13 @@ def main():
             
             user_id = aline[0]
             item_id = aline[1]
+            proba = float(aline[2])
             
             ui_tuple = (user_id, item_id)
             if (ui_tuple in ui_fcsting_cnt):
-                ui_fcsting_cnt[ui_tuple] += 1
+                ui_fcsting_cnt[ui_tuple] += (proba * slide_window_wieght[(window_start_date_str, window_size)])
             else:
-                ui_fcsting_cnt[ui_tuple] = 1
+                ui_fcsting_cnt[ui_tuple] = (proba * slide_window_wieght[(window_start_date_str, window_size)])
         
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
@@ -113,7 +125,7 @@ def main():
     # ensemble forecasting...       
     Y_fcsted_UI = []
     for ui_tuple in ui_fcsting_cnt:
-        if (ui_fcsting_cnt[ui_tuple] >= slide_windows/2):
+        if (ui_fcsting_cnt[ui_tuple] >= 0.5):
             Y_fcsted_UI.append([ui_tuple[0], ui_tuple[1]])
 
     Y_fcsted_UI = pd.DataFrame(Y_fcsted_UI, columns=['user_id', 'item_id'])
@@ -124,7 +136,7 @@ def main():
     
     forecasting_date = end_date + datetime.timedelta(days=1)
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
-    print("%s forecasting for %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, Y_fcsted_UI.shape[0]))
+    print("%s forecasting for %s, slide window %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, Y_fcsted_UI.shape[0]))
 
     if (forecasting_date_str == '2014-12-19'):
         index = 0
@@ -157,6 +169,42 @@ def main():
         print("%s precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
     
     return 0
+
+
+def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
+    checking_date = window_start_date + datetime.timedelta(days=window_size)
+    weight_dict = dict()
+    total = 0
+    while (checking_date <= end_date):
+        if (checking_date.month == 12 and checking_date.day == 12):
+            window_start_date = window_start_date + datetime.timedelta(days=1)
+            checking_date = window_start_date + datetime.timedelta(days = window_size)
+            continue
+            
+        window_start_date_str = convertDatatimeToStr(window_start_date)
+        checking_date_str = convertDatatimeToStr(checking_date)
+
+        slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+
+        index = 0
+        slidewindow_fcsting = csv.reader(open(slidewindow_filename, encoding="utf-8", mode='r'))
+        for aline in slidewindow_fcsting:
+            p = float(aline[0])
+            r = float(aline[1])
+            f1 = float(aline[2])
+        
+        weight_dict[(window_start_date_str, window_size)] = f1
+        
+        total += f1
+        
+        window_start_date = window_start_date + datetime.timedelta(days=1)
+        checking_date = window_start_date + datetime.timedelta(days = window_size)
+        
+    for k, f1 in weight_dict.items():
+        weight_dict[k] = f1 / total
+
+    print("slide window weight ", weight_dict)
+    return weight_dict
 
 if __name__ == '__main__':
     main()

@@ -23,6 +23,7 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.externals import joblib
 from sklearn.metrics import confusion_matrix
+from adodbapi.apibase import variantConvertDate
 
 
 
@@ -154,7 +155,7 @@ def single_window():
 
 #     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
 #     data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
-    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
 
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -164,7 +165,7 @@ def single_window():
 
     
     # creating feature matrix for forecasting...
-    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
 
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -198,10 +199,65 @@ def single_window():
 
     output_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, start_date_str, slide_window_size, fcsting_date_str)
     print("%s output forecasting to %s" % (getCurrentTime(), output_filename))
-    fcsting_matrix_df.ix[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']].to_csv(output_filename, index=False)
-
-    return 0
+    fcsted_ui = fcsting_matrix_df.ix[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']]
+    fcsted_ui.index = range(0, fcsted_ui.shape[0])
+    fcsted_proba =  Y_gbdt2_predicted[Y_gbdt2_predicted['buy'] >= g_min_prob]['buy']
+    fcsted_proba.index = range(0, fcsted_proba.shape[0])
+    fcsted_ui_proba = pd.concat([fcsted_ui, fcsted_proba], axis=1, ignore_index=True)
+    fcsted_ui_proba.columns = ['user_id', 'item_id', 'proba']
+    fcsted_ui_proba.to_csv(output_filename, index=False)
     
+    calculate_precission(gbcf_1, gbcf_2, 
+                         start_date_str, slide_window_size, 
+                         forecasting_date, 
+                         raw_data_df, fcsted_item_df)
+    return 0
+
+def calculate_precission(gbcf_1, gbcf_2, start_date_str, slide_window_size, forecasting_date, raw_data_df, fcsted_item_df):
+    print(getCurrentTime(), "calculate_precission ...")
+    forecasting_date_str = convertDatatimeToStr(forecasting_date)
+    
+    verifying_date = forecasting_date - datetime.timedelta(days=1)
+    verifying_start_date = verifying_date - datetime.timedelta(days=slide_window_size)
+    verifying_date_str = convertDatatimeToStr(verifying_date)
+    
+    Y_true_UI = raw_data_df[(raw_data_df['time'] == verifying_date_str)&\
+                            (raw_data_df['behavior_type'] == 4) &
+                            (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
+
+    verifying_window_df = create_slide_window_df(raw_data_df, verifying_start_date, verifying_date, slide_window_size, fcsted_item_df)
+
+    verifying_matrix_df, verifying_UI = extracting_features(verifying_window_df, slide_window_size, fcsted_item_df)
+
+    Y_verify_label = extracting_Y(verifying_UI, raw_data_df[raw_data_df['time'] == verifying_date_str][['user_id', 'item_id', 'behavior_type']])
+    verifying_matrix_df = pd.concat([verifying_matrix_df, Y_verify_label['buy']], axis=1)
+
+    # forecasting...
+    features_names_for_model = get_feature_name_for_model(verifying_matrix_df.columns)    
+
+    Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict_proba(verifying_matrix_df[features_names_for_model]), columns=['not buy', 'buy'])    
+
+    fcsted_index_1 = Y_gbdt1_predicted[Y_gbdt1_predicted['buy'] >= g_min_prob].index
+
+    Y_gbdt2_predicted = pd.DataFrame(gbcf_2.predict_proba(verifying_matrix_df[features_names_for_model].ix[fcsted_index_1]), columns=['not buy', 'buy'])
+
+    fcsted_index_2 = Y_gbdt2_predicted[Y_gbdt2_predicted['buy'] >= g_min_prob].index
+
+    output_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, start_date_str, slide_window_size, forecasting_date_str)
+    print("%s output forecasting to %s" % (getCurrentTime(), output_filename))
+    fcsted_ui = verifying_matrix_df.ix[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']]
+    fcsted_ui.index = range(0, fcsted_ui.shape[0])                            
+    p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui)
+    
+    print("%s slide window %s, %d, verified with %s, p %.6f, r %.6f, f1 %.6f" % 
+          (getCurrentTime(),  start_date_str, slide_window_size, verifying_date_str, p, r, f1))
+    output_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, start_date_str, slide_window_size, forecasting_date_str)
+    file_handle = open(output_filename, encoding="utf-8", mode='w')
+    file_handle.write("%.6f,%.6f,%.6f" % (p, r, f1))
+    file_handle.close()
+ 
+    return 0
+   
 if __name__ == '__main__':
     single_window()
     
