@@ -79,13 +79,13 @@ def extracting_Y(UI, label_day_df):
     return Y
 
 
-def get_output_filename(index, use_rule):
+def get_output_filename(index, file_name, use_rule):
     if (use_rule):
-        prob_output_filename = r"%s\..\output\single_window_forecast_with_prob_%s_%d_with_rule.csv" % (runningPath, datetime.date.today(), index)
-        submit_output_filename = r"%s\..\output\single_window_forecast_submit_%s_%d_with_rule.csv" % (runningPath, datetime.date.today(), index)
+        prob_output_filename = r"%s\..\output\%s_%s_%d_with_rule.csv" % (runningPath, file_name, datetime.date.today(), index)
+        submit_output_filename = r"%s\..\output\%s_%s_%d_with_rule.csv" % (runningPath, file_name, datetime.date.today(), index)
     else:
-        prob_output_filename = r"%s\..\output\single_window_forecast_with_prob_%s_%d_without_rule.csv" % (runningPath, datetime.date.today(), index)
-        submit_output_filename = r"%s\..\output\single_window_forecast_submit_%s_%d_without_rule.csv" % (runningPath, datetime.date.today(), index)
+        prob_output_filename = r"%s\..\output\%s_%s_%d_without_rule.csv" % (runningPath, file_name, datetime.date.today(), index)
+        submit_output_filename = r"%s\..\output\%s_%s_%d_without_rule.csv" % (runningPath, file_name, datetime.date.today(), index)
         
     return prob_output_filename, submit_output_filename
 
@@ -136,7 +136,7 @@ def PCA(feature_matrix_df):
 
 
 def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slide_window_size, fcsted_item_df):
-    print("%s creating slide window [%s, %s]" % (getCurrentTime(), window_start_date, window_end_date))
+    print("%s creating slide window [%s, %s)" % (getCurrentTime(), window_start_date, window_end_date))
     if (fcsted_item_df is not None):
         slide_window_df = raw_data_df[(raw_data_df['time'] >= convertDatatimeToStr(window_start_date))&
                                       (raw_data_df['time'] < convertDatatimeToStr(window_end_date)) &

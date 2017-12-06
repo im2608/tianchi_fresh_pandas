@@ -62,7 +62,6 @@ def trainingModel(feature_matrix_df, checking_date_str):
     samples_for_1 = takeSamples(samples_for_1, checking_date_str)
     samples_for_2 = takeSamples(samples_for_2, checking_date_str)
 
-    print(getCurrentTime(), "training GBDT 1...")
     gbcf_1.fit(samples_for_1[features_names_for_model], samples_for_1['buy'])
     
     Y_fcsted_gbdt = pd.DataFrame(gbcf_1.predict(samples_for_2[features_names_for_model]), columns=['buy'])
@@ -79,7 +78,6 @@ def trainingModel(feature_matrix_df, checking_date_str):
 
 #     features_for_gbdt = min_max_scaler.fit_transform(samples_for_gbdt[features_names_for_model])
 
-    print(getCurrentTime(), "training GBDT 2...")
     gbcf_2.fit(samples_for_2[features_names_for_model], Y_fcsted_gbdt['buy'])
     
 #     gbcf_pre = gbcf_2.predict(samples_for_1[features_names_for_model])    
@@ -97,20 +95,18 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
     print("%s handling slide window %s" % (getCurrentTime(), checking_date_str))
 
     slide_window_df = create_slide_window_df(raw_data_df, window_start_date, checking_date, slide_window_size, None)
-    slide_UI = slide_window_df[['user_id', 'item_id']].drop_duplicates()
- 
-    Y_label = extracting_Y(slide_UI, raw_data_df[raw_data_df['time'] == checking_date_str][['user_id', 'item_id', 'behavior_type']])
-    
+
     feature_mat_filename = r"%s\..\featuremat_and_model\feature_mat_%s_%d.csv" % (runningPath, checking_date_str, slide_window_size)
     if (os.path.exists(feature_mat_filename)):
         print("%s reading feature matrix from: %s_%d.csv" % (getCurrentTime(), checking_date_str, slide_window_size))
         feature_matrix_df = pd.read_csv(feature_mat_filename)
     else:
         feature_matrix_df, UIC = extracting_features(slide_window_df, slide_window_size, None)
+        Y_label = extracting_Y(UIC, raw_data_df[raw_data_df['time'] == checking_date_str])
         feature_matrix_df = pd.concat([feature_matrix_df, Y_label['buy']], axis=1)
 
     gbcf_1, gbcf_2 = trainingModel(feature_matrix_df, checking_date_str)
-    
+
     feature_import_filename_1 = r"%s\..\featuremat_and_model\feature_importance_1_%s_%d.txt" % (runningPath, checking_date_str, slide_window_size)
     feature_import_filename_2 = r"%s\..\featuremat_and_model\feature_importance_2_%s_%d.txt" % (runningPath, checking_date_str, slide_window_size)
     
@@ -119,7 +115,7 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
     for idx, importance in enumerate(gbcf_1.feature_importances_):
         file_handle.write("%s: %.4f\n"% (features_names_for_model[idx], importance))
     file_handle.close()
-        
+
     file_handle = open(feature_import_filename_2, encoding="utf-8", mode='w')
     for idx, importance in enumerate(gbcf_1.feature_importances_):
         file_handle.write("%s: %.4f\n"% (features_names_for_model[idx], importance))
@@ -151,11 +147,11 @@ def single_window():
     training_date = window_start_date + datetime.timedelta(days=slide_window_size)
     training_date_str = convertDatatimeToStr(training_date)
 
-    print("running for %s, %s" % (start_date_str, training_date_str))
+    print(getCurrentTime(), "running for %s, %s" % (start_date_str, training_date_str))
 
-#     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
 #     data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
-    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
+#     data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
 
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -163,30 +159,25 @@ def single_window():
     # training...
     gbcf_1, gbcf_2 = calculate_slide_window(raw_data_df, slide_window_size, window_start_date, training_date)  
 
-    
     # creating feature matrix for forecasting...
-    data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
-
-    print(getCurrentTime(), "reading csv ", data_filename)
-    raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
-    
     fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
-    
+
     forecasting_date = datetime.datetime.strptime(fcsting_date_str, "%Y-%m-%d")
-    window_start_date = forecasting_date - datetime.timedelta(days=slide_window_size) 
+    window_start_date = forecasting_date - datetime.timedelta(days=4) # only consider user-item that interacted within last 4 days 
     print("%s forecasting for %s , slide windows %d" % (getCurrentTime(), fcsting_date_str, slide_window_size))
 
+    # forecasting...
+    data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
+    raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
     fcsting_window_df = create_slide_window_df(raw_data_df, window_start_date, forecasting_date, slide_window_size, fcsted_item_df)
-#                                                fcsted_item_df if (data_fcsted_item_only) else None)
 
     fcsting_matrix_df, fcsting_UI = extracting_features(fcsting_window_df, slide_window_size, fcsted_item_df)
-#                                                          fcsted_item_df if (data_fcsted_item_only) else None)
+
     Y_training_label = extracting_Y(fcsting_UI, raw_data_df[raw_data_df['time'] == fcsting_date_str][['user_id', 'item_id', 'behavior_type']])
     fcsting_matrix_df = pd.concat([fcsting_matrix_df, Y_training_label['buy']], axis=1)
-
-    # forecasting...
+    
     features_names_for_model = get_feature_name_for_model(fcsting_matrix_df.columns)    
 
     Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict_proba(fcsting_matrix_df[features_names_for_model]), columns=['not buy', 'buy'])    
@@ -210,10 +201,10 @@ def single_window():
     calculate_precission(gbcf_1, gbcf_2, 
                          start_date_str, slide_window_size, 
                          forecasting_date, 
-                         raw_data_df, fcsted_item_df)
+                         raw_data_df, fcsted_item_df, data_filename)
     return 0
 
-def calculate_precission(gbcf_1, gbcf_2, start_date_str, slide_window_size, forecasting_date, raw_data_df, fcsted_item_df):
+def calculate_precission(gbcf_1, gbcf_2, start_date_str, slide_window_size, forecasting_date, raw_data_df, fcsted_item_df, data_filename):
     print(getCurrentTime(), "calculate_precission ...")
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
     
@@ -243,8 +234,6 @@ def calculate_precission(gbcf_1, gbcf_2, start_date_str, slide_window_size, fore
 
     fcsted_index_2 = Y_gbdt2_predicted[Y_gbdt2_predicted['buy'] >= g_min_prob].index
 
-    output_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, start_date_str, slide_window_size, forecasting_date_str)
-    print("%s output forecasting to %s" % (getCurrentTime(), output_filename))
     fcsted_ui = verifying_matrix_df.ix[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']]
     fcsted_ui.index = range(0, fcsted_ui.shape[0])                            
     p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui)
@@ -253,7 +242,8 @@ def calculate_precission(gbcf_1, gbcf_2, start_date_str, slide_window_size, fore
           (getCurrentTime(),  start_date_str, slide_window_size, verifying_date_str, p, r, f1))
     output_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, start_date_str, slide_window_size, forecasting_date_str)
     file_handle = open(output_filename, encoding="utf-8", mode='w')
-    file_handle.write("%.6f,%.6f,%.6f" % (p, r, f1))
+    file_handle.write("%.6f,%.6f,%.6f\n" % (p, r, f1))
+#     file_handle.write("using file %s" % data_filename)    
     file_handle.close()
  
     return 0

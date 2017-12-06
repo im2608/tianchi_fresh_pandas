@@ -43,4 +43,4 @@ g_only_from_test_set = False
 
 #正负样本比例 1： g_nag_times
 g_nag_times = 10
-g_min_prob = 0.7 
+g_min_prob = 0.5

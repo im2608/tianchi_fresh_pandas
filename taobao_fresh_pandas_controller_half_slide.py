@@ -41,37 +41,22 @@ def waitSubprocesses():
             return start_end_date_str
     return (0, 0)
 
-
-def full_slide():
-    return
-
 def main():
-    start_date_str = sys.argv[1].split("=")[1]
-    end_date_str = sys.argv[2].split("=")[1]
-    forecasting_date_str = sys.argv[3].split("=")[1]
-    window_size = int(sys.argv[4].split("=")[1])
+    forecasting_date_str = sys.argv[1].split("=")[1]
+    window_size_list = sys.argv[2].split("=")[1]
+    window_size_list = window_size_list.split(",")
     
     start_time = time.time()
 
-    window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-    checking_date = window_start_date + datetime.timedelta(days=window_size)
-
-    end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
-
     forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
 
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
+    for window_size in window_size_list:
+        window_size = int(window_size)
+        window_start_date = forecasting_date - datetime.timedelta(days=window_size + 1)
         window_start_date_str = convertDatatimeToStr(window_start_date)
- 
+  
         submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
-     
-        window_start_date = window_start_date + datetime.timedelta(days=1)
-        checking_date = window_start_date + datetime.timedelta(days = window_size)
+      
         if (len(runningSubProcesses) == 10):
             while True:
                 start_end_date_str = waitSubprocesses()
@@ -84,26 +69,20 @@ def main():
     while True:
         start_end_date_str = waitSubprocesses()
         if ((start_end_date_str[0] != 0 and start_end_date_str[1] != 0)):
-                    print("after waitSubprocesses, subprocess [%s, %s] finished, took %d seconds, runningSubProcesses len is %d" % 
-                          (start_end_date_str[0], start_end_date_str[1], time.time() - start_end_date_str[2], len(runningSubProcesses)))
+            print("after waitSubprocesses, subprocess [%s, %s] finished, took %d seconds, runningSubProcesses len is %d" % 
+                  (start_end_date_str[0], start_end_date_str[1], time.time() - start_end_date_str[2], len(runningSubProcesses)))
         if (len(runningSubProcesses) == 0):
             break
 
-    window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-    checking_date = window_start_date + datetime.timedelta(days=window_size)
     
-    slide_window_wieght = get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str)
+    slide_window_wieght = get_slide_window_wieght(window_size_list, forecasting_date)
 
     ui_fcsting_cnt = {}
     slide_windows = 0
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
+    for window_size in window_size_list:
+        window_size = int(window_size)
+        window_start_date = forecasting_date - datetime.timedelta(days=window_size + 1)
         window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
 
         subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
         print(getCurrentTime(), "reading sub process %s" % subprocess_filename)
@@ -125,8 +104,6 @@ def main():
             else:
                 ui_fcsting_cnt[ui_tuple] = (proba * slide_window_wieght[(window_start_date_str, window_size)])
 
-        window_start_date = window_start_date + datetime.timedelta(days=1)
-        checking_date = window_start_date + datetime.timedelta(days = window_size)
         slide_windows += 1
 
     # ensemble forecasting...       
@@ -140,36 +117,30 @@ def main():
     fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
-    
-    forecasting_date = end_date + datetime.timedelta(days=1)
-    forecasting_date_str = convertDatatimeToStr(forecasting_date)
-    print("%s forecasting for %s, slide windows %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, Y_fcsted_UI.shape[0]))
 
     use_rule = 1
     if (use_rule):
-        slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, window_size, None)
+        slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, 10, None)
         # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
         Y_fcsted_UI = rule_fav_cart_before_1day(slide_window_df, Y_fcsted_UI)
 
     if (forecasting_date_str == '2014-12-19'):
         index = 0
         Y_fcsted_UI = Y_fcsted_UI[(np.in1d(Y_fcsted_UI['item_id'], fcsted_item_df['item_id']))]
-        prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
+        prob_output_filename, submit_output_filename = get_output_filename(index, "half_slide", 0)
         while (os.path.exists(submit_output_filename)):
             index += 1
-            prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
+            prob_output_filename, submit_output_filename = get_output_filename(index, "half_slide", 0)
 
-        print(getCurrentTime(), " output forecasting to ", submit_output_filename)
         Y_fcsted_UI.to_csv(submit_output_filename, index=False)
         
         param_filename = submit_output_filename + ".param.txt"
 
         param_f = open(param_filename, encoding="utf-8", mode='w')
-        param_f.write("pos:nage=1:%d, window size=%d, start=%s, min prob %.4f" %
-                      (g_nag_times, window_size, start_date_str, g_min_prob))
+        param_f.write("pos:nage=1:%d, window size list=%s, min prob %.4f" % (g_nag_times, window_size_list, g_min_prob))
         param_f.close()
     else:
-        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
+        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
 
         print(getCurrentTime(), "reading csv ", data_filename)
         raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -182,29 +153,25 @@ def main():
         Y_fcsted_UI.to_csv(r"%s\..\output\fcst_%s.csv" % (runningPath, forecasting_date_str))
 
         print("%s precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-        print("pos:nage=1:%d, windows size=%d, start=%s, min prob %.4f" % (g_nag_times, window_size, start_date_str, g_min_prob))
-
+        
     end_time = time.time()
-
+    
     print(getCurrentTime(), " done, ran %d seconds" % (end_time - start_time))
     
     return 0
 
 
-def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
-    checking_date = window_start_date + datetime.timedelta(days=window_size)
+def get_slide_window_wieght(window_size_list, forecasting_date):
+    forecasting_date_str = convertDatatimeToStr(forecasting_date)
     weight_dict = dict()
     total = 0
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
+    for window_size in window_size_list:
+        window_size = int(window_size)
+        window_start_date = forecasting_date - datetime.timedelta(days=window_size + 1)
         window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
 
         slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+        print("reading sub process", slidewindow_filename)
 
         index = 0
         slidewindow_fcsting = csv.reader(open(slidewindow_filename, encoding="utf-8", mode='r'))
@@ -212,6 +179,8 @@ def get_slide_window_wieght(window_start_date, window_size, end_date, forecastin
             p = float(aline[0])
             r = float(aline[1])
             f1 = float(aline[2])
+            
+        print("f1 ", f1)
         
         weight_dict[(window_start_date_str, window_size)] = f1
         
