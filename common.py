@@ -8,8 +8,9 @@ import datetime
 import pandas as pd
 import numpy as np
 import time
-
+import csv
 from global_variables import *
+from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
 
 def convertDatatimeToStr(opt_datatime):
     return "%04d-%02d-%02d" % (opt_datatime.year, opt_datatime.month, opt_datatime.day)
@@ -151,3 +152,105 @@ def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slid
     slide_window_df['dayoffset'] = convert_date_str_to_dayoffset(slide_window_df['time'], slide_window_size, window_end_date)
 
     return slide_window_df
+
+
+
+
+def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
+    checking_date = window_start_date + datetime.timedelta(days=window_size)
+    weight_dict = dict()
+    total = 0
+    while (checking_date <= end_date):
+        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
+        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
+            checking_date = datetime.datetime(2014,12,14,0,0,0)
+            window_start_date = checking_date - datetime.timedelta(days=window_size)
+        
+        window_start_date_str = convertDatatimeToStr(window_start_date)
+        checking_date_str = convertDatatimeToStr(checking_date)
+
+        slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+
+        index = 0
+        slidewindow_fcsting = csv.reader(open(slidewindow_filename, encoding="utf-8", mode='r'))
+        for aline in slidewindow_fcsting:
+            p = float(aline[0])
+            r = float(aline[1])
+            f1 = float(aline[2])
+        
+        weight_dict[(window_start_date_str, window_size)] = f1
+        
+        total += f1
+        
+        window_start_date = window_start_date + datetime.timedelta(days=1)
+        checking_date = window_start_date + datetime.timedelta(days = window_size)
+        
+    for k, f1 in weight_dict.items():
+        weight_dict[k] = f1 / total
+
+    print("slide window weight ", weight_dict)
+    return weight_dict
+
+
+
+def splitTo50_50(feature_matrix_df):
+    samples_for_1 = feature_matrix_df.sample(frac=0.5, axis=0)
+    
+    index_for_gbdt = feature_matrix_df.index.difference(samples_for_1.index)
+    samples_for_2 = feature_matrix_df.ix[index_for_gbdt]
+    
+    samples_for_1.index = range(samples_for_1.shape[0])
+    samples_for_2.index = range(samples_for_2.shape[0])
+    
+    return samples_for_1, samples_for_2
+
+def takeSamples(feature_matrix_df, checking_date_str):
+    pos = feature_matrix_df[feature_matrix_df['buy'] == 1]
+    print("%s samples POS:NAG = 1:%d (%d : %d) %s" % (getCurrentTime(), g_nag_times, pos.shape[0], pos.shape[0] * g_nag_times, checking_date_str))
+    nag = feature_matrix_df[feature_matrix_df['buy'] == 0].sample(n = pos.shape[0] * g_nag_times, axis=0)
+ 
+    # 正负样本的比例 1:g_nag_times
+    samples = pd.concat([pos, nag], axis=0)
+    
+    return samples
+
+
+def trainingModel(feature_matrix_df, checking_date_str):
+    gbcf_1 = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
+                                       subsample=1.0, 
+                                       min_samples_split=100, 
+                                       min_samples_leaf=1,
+                                       max_depth=3) # gride searched to 3
+
+    features_names_for_model = get_feature_name_for_model(feature_matrix_df.columns)
+#     min_max_scaler = preprocessing.MinMaxScaler()
+
+    samples_for_1, samples_for_2 = splitTo50_50(feature_matrix_df)
+    samples_for_1 = takeSamples(samples_for_1, checking_date_str)
+    samples_for_2 = takeSamples(samples_for_2, checking_date_str)
+
+    gbcf_1.fit(samples_for_1[features_names_for_model], samples_for_1['buy'])
+    
+    Y_fcsted_gbdt = pd.DataFrame(gbcf_1.predict(samples_for_2[features_names_for_model]), columns=['buy'])
+#     print("%s GBDT 1st fit the training date: " % getCurrentTime())
+#     print(classification_report(samples_for_2['buy'], Y_fcsted_gbdt['buy'], target_names=["not buy", "buy"]))
+#     print("%s confusion matrix of LR: " % getCurrentTime())
+#     print(confusion_matrix(samples_for_2['buy'],  Y_fcsted_gbdt['buy']))
+
+    gbcf_2 = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
+                                        subsample=1.0, 
+                                        min_samples_split=100, 
+                                        min_samples_leaf=1,
+                                        max_depth=3) # gride searched to 3
+
+#     features_for_gbdt = min_max_scaler.fit_transform(samples_for_gbdt[features_names_for_model])
+
+    gbcf_2.fit(samples_for_2[features_names_for_model], Y_fcsted_gbdt['buy'])
+    
+#     gbcf_pre = gbcf_2.predict(samples_for_1[features_names_for_model])    
+#     print("%s GradientBoostingClassifier() fit the training date: " % getCurrentTime())
+#     print(classification_report(samples_for_1['buy'], gbcf_pre, target_names=["not buy", "buy"]))
+#     print("%s confusion matrix of GBDT: " % getCurrentTime())
+#     print(confusion_matrix(samples_for_1['buy'], gbcf_pre))
+
+    return gbcf_1, gbcf_2

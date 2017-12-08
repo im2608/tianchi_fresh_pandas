@@ -65,11 +65,11 @@ def main():
         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
             checking_date = datetime.datetime(2014,12,14,0,0,0)
             window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
+         
         window_start_date_str = convertDatatimeToStr(window_start_date)
- 
+  
         submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
-     
+      
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
         if (len(runningSubProcesses) == 10):
@@ -137,7 +137,7 @@ def main():
 
     Y_fcsted_UI = pd.DataFrame(Y_fcsted_UI, columns=['user_id', 'item_id'])
     
-    fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
+    fcsted_item_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
     
@@ -145,22 +145,25 @@ def main():
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
     print("%s forecasting for %s, slide windows %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, Y_fcsted_UI.shape[0]))
 
-    use_rule = 1
-    if (use_rule):
-        slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, window_size, None)
-        # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-        Y_fcsted_UI = rule_fav_cart_before_1day(slide_window_df, Y_fcsted_UI)
+    Y_fcsted_UI_no_rule = Y_fcsted_UI.copy()
+    
+    slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, window_size, None)
+    # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
+    Y_fcsted_UI_with_rule = rule_fav_cart_before_1day(slide_window_df, Y_fcsted_UI)
 
     if (forecasting_date_str == '2014-12-19'):
         index = 0
-        Y_fcsted_UI = Y_fcsted_UI[(np.in1d(Y_fcsted_UI['item_id'], fcsted_item_df['item_id']))]
+        use_rule = 0
         prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
         while (os.path.exists(submit_output_filename)):
             index += 1
             prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
 
         print(getCurrentTime(), " output forecasting to ", submit_output_filename)
-        Y_fcsted_UI.to_csv(submit_output_filename, index=False)
+        if (use_rule):
+            Y_fcsted_UI_with_rule.to_csv(submit_output_filename, index=False)
+        else:
+            Y_fcsted_UI_no_rule.to_csv(submit_output_filename, index=False)
         
         param_filename = submit_output_filename + ".param.txt"
 
@@ -178,10 +181,11 @@ def main():
                                 (raw_data_df['behavior_type'] == 4) &
                                 (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
 
-        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI)
-        Y_fcsted_UI.to_csv(r"%s\..\output\fcst_%s.csv" % (runningPath, forecasting_date_str))
-
-        print("%s precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
+        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI_no_rule)
+        print("%s WITHOUT rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
+        
+        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI_with_rule)
+        print("%s WITH rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
         print("pos:nage=1:%d, windows size=%d, start=%s, min prob %.4f" % (g_nag_times, window_size, start_date_str, g_min_prob))
 
     end_time = time.time()
@@ -190,41 +194,6 @@ def main():
     
     return 0
 
-
-def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
-    checking_date = window_start_date + datetime.timedelta(days=window_size)
-    weight_dict = dict()
-    total = 0
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
-        window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
-
-        slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
-
-        index = 0
-        slidewindow_fcsting = csv.reader(open(slidewindow_filename, encoding="utf-8", mode='r'))
-        for aline in slidewindow_fcsting:
-            p = float(aline[0])
-            r = float(aline[1])
-            f1 = float(aline[2])
-        
-        weight_dict[(window_start_date_str, window_size)] = f1
-        
-        total += f1
-        
-        window_start_date = window_start_date + datetime.timedelta(days=1)
-        checking_date = window_start_date + datetime.timedelta(days = window_size)
-        
-    for k, f1 in weight_dict.items():
-        weight_dict[k] = f1 / total
-
-    print("slide window weight ", weight_dict)
-    return weight_dict
 
 if __name__ == '__main__':
     main()

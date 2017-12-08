@@ -109,6 +109,9 @@ def main():
     slide_windows = 0
     X = []
     
+    window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    checking_date = window_start_date + datetime.timedelta(days=window_size)
+
     while (checking_date <= end_date):
         # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
@@ -127,58 +130,48 @@ def main():
         slide_windows += 1
 
     train_feature_mat = pd.concat(X, axis=0, ignore_index=True)
+    print(getCurrentTime(), " stacked training matrix shape %d, %d/%d" % (train_feature_mat.shape[0], \
+        train_feature_mat[train_feature_mat['buy'] == 1].shape[0], train_feature_mat[train_feature_mat['buy'] == 0].shape[0]))
     features_names_for_model = get_feature_name_for_model(train_feature_mat.columns)
 
     # ensemble forecasting...
-    train_pos = train_feature_mat[train_feature_mat['buy'] == 1]
-    train_nag = train_feature_mat[train_feature_mat['buy'] == 0]
-    train_nag = train_nag.sample(n=train_pos.shape[0]*g_nag_times, axis=0)
-    
-    print(getCurrentTime(), "training gbdt, pos shape %s, nag shape %s ..." % (train_pos.shape, train_nag.shape))
-    
-    train_feature_mat = pd.concat([train_pos, train_nag], axis=0)
+    gbcf_1, gbcf_2 = trainingModel(train_feature_mat, forecasting_date)
 
-    gbcf_1 = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
-                                        subsample=1.0, 
-                                        min_samples_split=100, 
-                                        min_samples_leaf=1,
-                                        max_depth=3) # gride searched to 3
-    
-    gbcf_1.fit(train_feature_mat[features_names_for_model], train_feature_mat['buy'])
+    Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict_proba(fcsting_matrix_df[features_names_for_model]), columns=['not buy', 'buy'])    
 
-    Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict_proba(fcsting_matrix_df[features_names_for_model]), columns=['not buy', 'buy'])
-    Y_gbdt1_predicted = pd.concat([fcsting_UI, Y_gbdt1_predicted], axis=1)
+    fcsted_index_1 = Y_gbdt1_predicted[Y_gbdt1_predicted['buy'] >= g_min_prob].index
+    print(getCurrentTime(), " gbdt 1 forecasted %d", fcsted_index_1.shape[0])
+
+    Y_gbdt2_predicted = pd.DataFrame(gbcf_2.predict_proba(fcsting_matrix_df[features_names_for_model].iloc[fcsted_index_1]), columns=['not buy', 'buy'])
+
+    fcsted_index_2 = Y_gbdt2_predicted[Y_gbdt2_predicted['buy'] >= g_min_prob].index
+    
+    fcsted_ui = fcsting_matrix_df.iloc[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']]
 
     forecasting_date = end_date + datetime.timedelta(days=1)
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
     print("%s forecasting for %s, slide window %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, Y_gbdt1_predicted.shape[0]))
+    
+    fcsted_ui_no_rule = fcsted_ui.copy()
 
-    use_rule = 1
-    if (use_rule):
-        fcsted_item_filename = r"%s\..\input\tianchi_fresh_comp_train_item.csv" % (runningPath)
-        print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
-        fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
-        
-        slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, window_size, None)
-
-        # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-        Y_gbdt1_predicted = rule_fav_cart_before_1day(slide_window_df, Y_gbdt1_predicted)
-        Y_gbdt1_predicted.fillna(1, inplace=True)
-
-    Y_gbdt1_predicted = Y_gbdt1_predicted.sort_values(by=['buy'], ascending=False)
+    # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
+    fcsted_ui_with_rule = rule_fav_cart_before_1day(fcsting_window_df, fcsted_ui)
+    fcsted_ui_with_rule.fillna(1, inplace=True)
 
     if (forecasting_date_str == '2014-12-19'):
         index = 0
-        Y_fcsted_UI = Y_gbdt1_predicted[(np.in1d(Y_gbdt1_predicted['item_id'], fcsted_item_df['item_id'])) &\
-                                        (Y_gbdt1_predicted['buy'] >= g_min_prob)]
-        Y_fcsted_UI = Y_fcsted_UI.sort_values(by=['buy'])
-        prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", 0)
+        use_rule = 0
+        
+        prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", use_rule)
         while (os.path.exists(submit_output_filename)):
             index += 1
-            prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", 0)
+            prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", use_rule)
 
-        Y_fcsted_UI.to_csv(submit_output_filename, index=False)
-        
+        if (use_rule):
+            fcsted_ui_with_rule.to_csv(submit_output_filename, index=False)
+        else:
+            fcsted_ui_no_rule.to_csv(submit_output_filename, index=False)
+
         param_filename = submit_output_filename + ".param.txt"
 
         param_f = open(param_filename, encoding="utf-8", mode='w')
@@ -195,47 +188,17 @@ def main():
                                 (raw_data_df['behavior_type'] == 4) &
                                 (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
 
-        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI)
-        Y_fcsted_UI.to_csv(r"%s\..\output\fcst_%s.csv" % (runningPath, forecasting_date_str))
+        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_with_rule)
+        print("%s WITH rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
 
-        print("%s precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-    
+        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_no_rule)
+        print("%s WITHOUT rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
+
     end_time = time.time()
     
     print(getCurrentTime(), " done, ran %d seconds" % (end_time - start_time))
 
     return 0
-
-
-def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
-    checking_date = window_start_date + datetime.timedelta(days=window_size)
-    weight_dict = dict()
-    total = 0
-    while (checking_date <= end_date):
-        window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
-
-        slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
-
-        index = 0
-        slidewindow_fcsting = csv.reader(open(slidewindow_filename, encoding="utf-8", mode='r'))
-        for aline in slidewindow_fcsting:
-            p = float(aline[0])
-            r = float(aline[1])
-            f1 = float(aline[2])
-        
-        weight_dict[(window_start_date_str, window_size)] = f1
-        
-        total += f1
-        
-        window_start_date = window_start_date + datetime.timedelta(days=1)
-        checking_date = window_start_date + datetime.timedelta(days = window_size)
-        
-    for k, f1 in weight_dict.items():
-        weight_dict[k] = f1 / total
-
-    print("slide window weight ", weight_dict)
-    return weight_dict
 
 if __name__ == '__main__':
     main()

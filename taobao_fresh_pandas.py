@@ -26,19 +26,6 @@ from sklearn.metrics import confusion_matrix
 
 
 
-def splitTo50_50(feature_matrix_df):
-    # 采样50%用于训练LR
-    samples_for_LR = feature_matrix_df.sample(frac=0.5, axis=0)
-    
-    # 取另外的50%用LR来预测， 预测后的结果作为 Y_for_gbdt 用于训练gbdt
-    index_for_gbdt = feature_matrix_df.index.difference(samples_for_LR.index)
-    samples_for_gbdt = feature_matrix_df.ix[index_for_gbdt]
-    
-    samples_for_LR.index = range(samples_for_LR.shape[0])
-    samples_for_gbdt.index = range(samples_for_gbdt.shape[0])
-
-    return samples_for_LR, samples_for_gbdt
-
 def takeSamplesForTraining(feature_matrix_df):
     pos = feature_matrix_df[feature_matrix_df['buy'] == 1]
     print("%s POS:NAG = 1:%d (%d : %d)" % (getCurrentTime(), g_nag_times, pos.shape[0], pos.shape[0] * g_nag_times))

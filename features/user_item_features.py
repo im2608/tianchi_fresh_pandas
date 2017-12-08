@@ -67,13 +67,22 @@ def feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_
 
 # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
 def rule_fav_cart_before_1day(forecasting_window_df, Y_forecasted):
-    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 3, Y_forecasted)
-    Y_forecasted = feature_user_item_opt_before1day(forecasting_window_df, 4, Y_forecasted)
-    Y_forecasted.loc[(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0), 'buy_prob'] = 1
-    print("%s rule forecasted %d items" % 
-          (getCurrentTime(), Y_forecasted[(Y_forecasted['item_cart_opt_before1day'] == 1)&(Y_forecasted['item_buy_opt_before1day'] == 0)].shape[0]))
+    cart_before1day_df = feature_user_opt_before1day(forecasting_window_df, 3, 'item_id')
+    cart_before1day_df.rename(columns={"opt_before1day":"cart_before1day"}, inplace=True)
+    
+    buy_before1day_df = feature_user_opt_before1day(forecasting_window_df, 4, 'item_id')
+    buy_before1day_df.rename(columns={"opt_before1day":"buy_before1day"}, inplace=True)
+    
+    only_cart_before1day = pd.merge(cart_before1day_df, buy_before1day_df, on=['user_id', 'item_id'], how='left')
+    # 删除cart and buy 的记录，保留只有cart的记录
+    only_cart_before1day.drop(only_cart_before1day[only_cart_before1day['buy_before1day'] == 1].index, inplace=True)
+    
+    Y_forecasted_with_rule = pd.merge(Y_forecasted, only_cart_before1day[['user_id', 'item_id']], on=['user_id', 'item_id'], how='outer')
+    Y_forecasted_with_rule.drop_duplicates(inplace=True)
+    
+    print("%s rule rule_fav_cart_before_1day forecasted %d items" % (getCurrentTime(), Y_forecasted_with_rule.shape[0] - Y_forecasted.shape[0]))
 
-    return Y_forecasted
+    return Y_forecasted_with_rule
 
 
 
