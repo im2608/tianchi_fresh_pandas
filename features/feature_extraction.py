@@ -40,17 +40,17 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     # 用户在checking day 前一天对item是否有过cart/ favorite
     feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, 3, feature_matrix_df)   
     feature_matrix_df = feature_user_item_opt_before1day(slide_window_df, 2, feature_matrix_df)
-    
+
     # 用户checking_date（不包括）之前 在item上操作（浏览， 收藏， 购物车， 购买）该商品的次数, 这些次数占该用户操作商品的总次数的比例,
     feature_matrix_df = feature_user_item_behavior_ratio(slide_window_df, slide_window_size, UIC, feature_matrix_df)
-    
+
     # 用户第一次，最后一次操作 item 至 window_end_date(不包括) 的天数
     # 用户第一次，最后一次操作 item 之间的天数, 
     feature_matrix_df = feature_user_item_1stlast_opt(slide_window_df, UIC, feature_matrix_df)
-    
+
     #  用户第一次操作商品到购买之间的天数
     feature_matrix_df = feature_user_item_days_between_1stopt_and_buy(slide_window_df, UIC, feature_matrix_df)
-    
+
     #用户第一次购买 item 前， 在 item 上各个 behavior 的数量, 3个特征
     feature_matrix_df = feature_user_item_behavior_cnt_before_1st_buy(slide_window_df, UIC, feature_matrix_df)
     

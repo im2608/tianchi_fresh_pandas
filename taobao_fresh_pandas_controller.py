@@ -59,16 +59,21 @@ def main():
     end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
 
     forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
-
+    date_1212 = datetime.datetime.strptime("2014-12-12", "%Y-%m-%d")
+    
     while (checking_date <= end_date):
         # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
             checking_date = datetime.datetime(2014,12,14,0,0,0)
             window_start_date = checking_date - datetime.timedelta(days=window_size)
          
-        window_start_date_str = convertDatatimeToStr(window_start_date)
-  
-        submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
+        window_end_date = window_start_date + datetime.timedelta(days=window_size)
+        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
+            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))   
+            submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size + 1)
+        else:
+            window_start_date_str = convertDatatimeToStr(window_start_date)
+            submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
       
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
@@ -103,9 +108,15 @@ def main():
             window_start_date = checking_date - datetime.timedelta(days=window_size)
         
         window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
-
-        subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+        
+        window_end_date = window_start_date + datetime.timedelta(days=window_size)
+        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
+            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))
+            subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size + 1, forecasting_date_str)
+        else:
+            window_start_date_str = convertDatatimeToStr(window_start_date)
+            subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+        
         print(getCurrentTime(), "reading sub process %s" % subprocess_filename)
 
         index = 0

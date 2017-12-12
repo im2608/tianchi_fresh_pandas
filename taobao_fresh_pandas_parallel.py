@@ -44,7 +44,7 @@ def calculate_slide_window(raw_data_df, slide_window_size, window_start_date, ch
         Y_label = extracting_Y(UIC, raw_data_df[raw_data_df['time'] == checking_date_str])
         feature_matrix_df = pd.concat([feature_matrix_df, Y_label['buy']], axis=1)
 
-    gbcf_1, gbcf_2 = trainingModel(feature_matrix_df, checking_date_str)
+    gbcf_1, gbcf_2 = trainingModel_2(feature_matrix_df, checking_date_str)
 
     feature_import_filename_1 = r"%s\..\featuremat_and_model\feature_importance_1_%s_%d.txt" % (runningPath, checking_date_str, slide_window_size)
     feature_import_filename_2 = r"%s\..\featuremat_and_model\feature_importance_2_%s_%d.txt" % (runningPath, checking_date_str, slide_window_size)

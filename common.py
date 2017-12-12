@@ -11,6 +11,7 @@ import time
 import csv
 from global_variables import *
 from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
+import xgboost as xgb
 
 def convertDatatimeToStr(opt_datatime):
     return "%04d-%02d-%02d" % (opt_datatime.year, opt_datatime.month, opt_datatime.day)
@@ -232,10 +233,6 @@ def trainingModel(feature_matrix_df, checking_date_str):
     gbcf_1.fit(samples_for_1[features_names_for_model], samples_for_1['buy'])
     
     Y_fcsted_gbdt = pd.DataFrame(gbcf_1.predict(samples_for_2[features_names_for_model]), columns=['buy'])
-#     print("%s GBDT 1st fit the training date: " % getCurrentTime())
-#     print(classification_report(samples_for_2['buy'], Y_fcsted_gbdt['buy'], target_names=["not buy", "buy"]))
-#     print("%s confusion matrix of LR: " % getCurrentTime())
-#     print(confusion_matrix(samples_for_2['buy'],  Y_fcsted_gbdt['buy']))
 
     gbcf_2 = GradientBoostingClassifier(n_estimators=80, # gride searched to 80
                                         subsample=1.0, 
@@ -246,11 +243,31 @@ def trainingModel(feature_matrix_df, checking_date_str):
 #     features_for_gbdt = min_max_scaler.fit_transform(samples_for_gbdt[features_names_for_model])
 
     gbcf_2.fit(samples_for_2[features_names_for_model], Y_fcsted_gbdt['buy'])
-    
-#     gbcf_pre = gbcf_2.predict(samples_for_1[features_names_for_model])    
-#     print("%s GradientBoostingClassifier() fit the training date: " % getCurrentTime())
-#     print(classification_report(samples_for_1['buy'], gbcf_pre, target_names=["not buy", "buy"]))
-#     print("%s confusion matrix of GBDT: " % getCurrentTime())
-#     print(confusion_matrix(samples_for_1['buy'], gbcf_pre))
 
     return gbcf_1, gbcf_2
+
+
+def trainingModel_2(feature_matrix_df, checking_date_str):
+    features_names_for_model = get_feature_name_for_model(feature_matrix_df.columns)
+
+    samples_for_1, samples_for_2 = splitTo50_50(feature_matrix_df)
+    samples_for_1 = takeSamples(samples_for_1, checking_date_str)
+    samples_for_2 = takeSamples(samples_for_2, checking_date_str)
+
+    num_round = 900
+    params = {'max_depth': 4, 'colsample_bytree': 0.8, 'subsample': 0.8, 'eta': 0.02, 'silent': 1,
+              'objective': 'binary:logistic','eval_metric ':'error', 'min_child_weight': 2.5,#'max_delta_step':10,'gamma':0.1,'scale_pos_weight':230/1,
+               'seed': 10}  #
+
+    dtrain_1 = xgb.DMatrix(samples_for_1[features_names_for_model], label=samples_for_1['buy'])
+    dtest_2 = xgb.DMatrix(samples_for_2[features_names_for_model])
+    model_1 = xgb.train(params, dtrain_1, num_round)
+
+    dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model])
+
+#     array([ 0.59414583,  0.1570912 ,  0.22166768], dtype=float32)
+    predicted_proba = model_1.predict(dtrain_2)
+
+    dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model], label=predicted_proba)
+    model_2 = xgb.train(params, dtrain_2, num_round)
+    return model_1, model_2
