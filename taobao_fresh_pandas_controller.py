@@ -58,23 +58,10 @@ def main():
 
     end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
 
-    forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
-    date_1212 = datetime.datetime.strptime("2014-12-12", "%Y-%m-%d")
-    
     while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-         
-        window_end_date = window_start_date + datetime.timedelta(days=window_size)
-        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
-            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))   
-            submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size + 1)
-        else:
-            window_start_date_str = convertDatatimeToStr(window_start_date)
-            submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
-      
+        window_start_date_str = convertDatatimeToStr(window_start_date)
+        submiteOneSubProcess(window_start_date_str, forecasting_date_str, window_size)
+       
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
         if (len(runningSubProcesses) == 10):
@@ -96,27 +83,15 @@ def main():
 
     window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     checking_date = window_start_date + datetime.timedelta(days=window_size)
-    
-    slide_window_wieght = get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str)
+
+    slide_window_wieght = get_slide_window_weight(window_start_date, window_size, end_date, forecasting_date_str)
 
     ui_fcsting_cnt = {}
     slide_windows = 0
     while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
         window_start_date_str = convertDatatimeToStr(window_start_date)
-        
-        window_end_date = window_start_date + datetime.timedelta(days=window_size)
-        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
-            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))
-            subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size + 1, forecasting_date_str)
-        else:
-            window_start_date_str = convertDatatimeToStr(window_start_date)
-            subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
-        
+        subprocess_filename = r"%s\..\output\subprocess\%s_%d_%s.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
+
         print(getCurrentTime(), "reading sub process %s" % subprocess_filename)
 
         index = 0
@@ -143,26 +118,22 @@ def main():
     # ensemble forecasting...       
     Y_fcsted_UI = []
     for ui_tuple in ui_fcsting_cnt:
-        if (ui_fcsting_cnt[ui_tuple] >= 0.5):
-            Y_fcsted_UI.append([ui_tuple[0], ui_tuple[1]])
+#         if (ui_fcsting_cnt[ui_tuple] >= 0.5):
+            Y_fcsted_UI.append([ui_tuple[0], ui_tuple[1], ui_fcsting_cnt[ui_tuple]])
 
-    Y_fcsted_UI = pd.DataFrame(Y_fcsted_UI, columns=['user_id', 'item_id'])
+    Y_fcsted_UI = pd.DataFrame(Y_fcsted_UI, columns=['user_id', 'item_id', 'score'])
+    Y_fcsted_UI = Y_fcsted_UI.sort_values('score', axis=0, ascending=False)
+    Y_fcsted_UI_700 = Y_fcsted_UI[0:700][['user_id', 'item_id']]
     
     fcsted_item_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
     print(getCurrentTime(), "reading being forecasted items ", fcsted_item_filename)
     fcsted_item_df = pd.read_csv(fcsted_item_filename, dtype={'item_id':np.str})
     
-    forecasting_date = end_date + datetime.timedelta(days=1)
-    forecasting_date_str = convertDatatimeToStr(forecasting_date)
+    forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
+    window_start_date = forecasting_date - datetime.timedelta(days=window_size) 
     print("%s forecasting for %s, slide windows %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, Y_fcsted_UI.shape[0]))
 
-    Y_fcsted_UI_no_rule = Y_fcsted_UI.copy()
-    
-    slide_window_df = create_slide_window_df(fcsted_item_df, window_start_date, forecasting_date, window_size, None)
-    # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-    Y_fcsted_UI_with_rule = rule_fav_cart_before_1day(slide_window_df, Y_fcsted_UI)
-
-    if (forecasting_date_str == '2014-12-19'):
+    if (forecasting_date_str == '2014-12-18'):
         index = 0
         use_rule = 0
         prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
@@ -171,10 +142,9 @@ def main():
             prob_output_filename, submit_output_filename = get_output_filename(index, "full_slide", use_rule)
 
         print(getCurrentTime(), " output forecasting to ", submit_output_filename)
-        if (use_rule):
-            Y_fcsted_UI_with_rule.to_csv(submit_output_filename, index=False)
-        else:
-            Y_fcsted_UI_no_rule.to_csv(submit_output_filename, index=False)
+
+        Y_fcsted_UI[['user_id', 'item_id']].to_csv(submit_output_filename, index=False)
+        Y_fcsted_UI_700.to_csv(submit_output_filename + ".700.csv", index=False)
         
         param_filename = submit_output_filename + ".param.txt"
 
@@ -183,7 +153,7 @@ def main():
                       (g_nag_times, window_size, start_date_str, g_min_prob))
         param_f.close()
     else:
-        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
+        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
 
         print(getCurrentTime(), "reading csv ", data_filename)
         raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -192,12 +162,8 @@ def main():
                                 (raw_data_df['behavior_type'] == 4) &
                                 (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
 
-        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI_no_rule)
-        print("%s WITHOUT rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-        
-        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI_with_rule)
-        print("%s WITH rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-        print("pos:nage=1:%d, windows size=%d, start=%s, min prob %.4f" % (g_nag_times, window_size, start_date_str, g_min_prob))
+        p, r, f1 = calculate_POS_F1(Y_true_UI, Y_fcsted_UI)
+        print("%s : precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
 
     end_time = time.time()
 

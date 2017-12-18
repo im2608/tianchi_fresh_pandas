@@ -23,9 +23,10 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
 
     if (fcsted_item_df is not None):
         UIC = slide_window_df[['user_id', 'item_id', 'item_category']]\
-                              [(np.in1d(slide_window_df['item_id'], fcsted_item_df['item_id']))&((slide_window_df['time'] == last_day_of_slide_window))].drop_duplicates()
+                              [(np.in1d(slide_window_df['item_id'], fcsted_item_df['item_id']))&\
+                               ((slide_window_df['dayoffset'] == 1))].drop_duplicates()
     else:
-        UIC = slide_window_df[['user_id', 'item_id', 'item_category']][slide_window_df['time'] == last_day_of_slide_window].drop_duplicates()
+        UIC = slide_window_df[['user_id', 'item_id', 'item_category']][slide_window_df['dayoffset'] == 1].drop_duplicates()
 
     UIC.index = range(np.shape(UIC)[0])
 
@@ -95,7 +96,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     feature_matrix_df = feature_category_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
 
     # category 在一周内每天各个操作的次数
-#     feature_matrix_df = feature_category_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_category_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
     
 #     print("%s After extracting category features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     #############################################################################################
@@ -113,7 +114,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
     feature_matrix_df = feature_item_user_cnt_on_behavior(slide_window_df, slide_window_size, UIC, feature_matrix_df)
     
     # item 在一周内每天各个操作的次数
-#     feature_matrix_df = feature_item_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_item_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
     
 #     print("%s After extracting item features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
     
@@ -136,7 +137,7 @@ def extracting_features(slide_window_df, slide_window_size, fcsted_item_df):
         feature_matrix_df = feature_user_behavior_before_1day_24hour(slide_window_df, dayoffset, UIC, feature_matrix_df)
     
     # user 在一周内每天各个操作的次数
-#     feature_matrix_df = feature_user_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
+    feature_matrix_df = feature_user_behavior_cnt_on_weekday(slide_window_df, UIC, feature_matrix_df)
     
 #     print("%s After extracting user features, shape is " % (getCurrentTime()), feature_matrix_df.shape)
 

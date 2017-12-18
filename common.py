@@ -94,7 +94,7 @@ def get_output_filename(index, file_name, use_rule):
 def get_feature_name_for_model(features):
     s = set(features)
     r = set(['user_id', 'item_id', 'item_category', 'buy'])
-    return list(s-r)
+    return np.sort(list(s-r))
 
 # 计算正例的 F1
 def calculate_POS_F1(Y_true_UI, Y_fcsted_UI):
@@ -107,6 +107,8 @@ def calculate_POS_F1(Y_true_UI, Y_fcsted_UI):
     UI_hit = UI_pred.intersection(UI_true)
     
     hit_cnt = len(UI_hit)
+    if (hit_cnt == 0):
+        return 0, 0, 0
     
     print("%s True count %d, Forecasted count %d, Hit count %d" % (getCurrentTime(), len(UI_true), len(UI_pred), hit_cnt))
     
@@ -157,19 +159,13 @@ def create_slide_window_df(raw_data_df, window_start_date, window_end_date, slid
 
 
 
-def get_slide_window_wieght(window_start_date, window_size, end_date, forecasting_date_str):
+def get_slide_window_weight(window_start_date, window_size, end_date, forecasting_date_str):
     checking_date = window_start_date + datetime.timedelta(days=window_size)
     weight_dict = dict()
     total = 0
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
-        window_start_date_str = convertDatatimeToStr(window_start_date)
-        checking_date_str = convertDatatimeToStr(checking_date)
 
+    while (checking_date <= end_date):
+        window_start_date_str = convertDatatimeToStr(window_start_date)
         slidewindow_filename = r"%s\..\output\subprocess\%s_%d_%s_p_r_f1.csv" % (runningPath, window_start_date_str, window_size, forecasting_date_str)
 
         index = 0

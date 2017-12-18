@@ -34,9 +34,8 @@ def create_feature_matrix():
 
     print("creating feature matrix for %s, %s" % (start_date_str, checking_date_str))
 
-    data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
-#     data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
-#     data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
+#     data_filename = r"%s\..\input\preprocessed_user_data.csv" % (runningPath)
+    data_filename = r"%s\..\input\preprocessed_user_data_fcsted_item_only.csv" % (runningPath)
 
     print(getCurrentTime(), "reading csv ", data_filename)
     raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})

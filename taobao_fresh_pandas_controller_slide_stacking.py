@@ -56,22 +56,15 @@ def main():
     end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
 
     forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
-    
-    date_1212 = datetime.datetime.strptime("2014-12-12", "%Y-%m-%d")
 
     while (checking_date <= end_date):
         # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
+#         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
+#             checking_date = datetime.datetime(2014,12,14,0,0,0)
+#             window_start_date = checking_date - datetime.timedelta(days=window_size)
  
-        window_end_date = window_start_date + datetime.timedelta(days=window_size)
-        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
-            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))   
-            submiteOneSubProcess(window_start_date_str, window_size + 1)
-        else:
-            window_start_date_str = convertDatatimeToStr(window_start_date)
-            submiteOneSubProcess(window_start_date_str, window_size)
+        window_start_date_str = convertDatatimeToStr(window_start_date)
+        submiteOneSubProcess(window_start_date_str, window_size)
  
         window_start_date = window_start_date + datetime.timedelta(days=1)
         checking_date = window_start_date + datetime.timedelta(days = window_size)
@@ -114,24 +107,19 @@ def main():
     ui_fcsting_cnt = {}
     slide_windows = 0
     X = []
-    
+
     window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     checking_date = window_start_date + datetime.timedelta(days=window_size)
 
     while (checking_date <= end_date):
         # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-        if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-            checking_date = datetime.datetime(2014,12,14,0,0,0)
-            window_start_date = checking_date - datetime.timedelta(days=window_size)
+#         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
+#             checking_date = datetime.datetime(2014,12,14,0,0,0)
+#             window_start_date = checking_date - datetime.timedelta(days=window_size)
         
-        window_end_date = window_start_date + datetime.timedelta(days=window_size)
-        if (date_1212 >= window_start_date and date_1212 <= window_end_date):
-            window_start_date_str = convertDatatimeToStr(window_start_date - datetime.timedelta(days=1))
-            feature_mat_filename = r"%s\..\featuremat_and_model\feature_mat_%s_%d.csv" % (runningPath, window_start_date_str, window_size + 1)   
-        else:
-            window_start_date_str = convertDatatimeToStr(window_start_date)
-            feature_mat_filename = r"%s\..\featuremat_and_model\feature_mat_%s_%d.csv" % (runningPath, window_start_date_str, window_size)
-        
+        window_start_date_str = convertDatatimeToStr(window_start_date)
+        feature_mat_filename = r"%s\..\featuremat_and_model\feature_mat_%s_%d.csv" % (runningPath, window_start_date_str, window_size)
+    
         print("reading feature matrix ", feature_mat_filename)
         slide_feature_mat = pd.read_csv(feature_mat_filename)
         X.append(slide_feature_mat)
@@ -143,7 +131,7 @@ def main():
     train_feature_mat = pd.concat(X, axis=0, ignore_index=True)
     print(getCurrentTime(), " stacked training matrix shape %d, %d/%d" % (train_feature_mat.shape[0], \
         train_feature_mat[train_feature_mat['buy'] == 1].shape[0], train_feature_mat[train_feature_mat['buy'] == 0].shape[0]))
-    features_names_for_model = get_feature_name_for_model(train_feature_mat.columns)
+    
     train_feature_mat.fillna(0, inplace=True)
 
     # ensemble forecasting...
@@ -151,6 +139,9 @@ def main():
 #     gbcf_1, gbcf_2 = trainingModel(train_feature_mat, forecasting_date)
 
     print("fcsting_matrix_df TYPE", type(fcsting_matrix_df))
+    features_names_for_model = get_feature_name_for_model(train_feature_mat.columns)
+    print("features_names_for_model len ", len(features_names_for_model))
+    
     fcsting_mat = xgb.DMatrix(fcsting_matrix_df[features_names_for_model])
     Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict(fcsting_mat), columns=['buy_prob'])    
 
@@ -162,6 +153,7 @@ def main():
 
     fcsted_index_2 = Y_gbdt2_predicted[Y_gbdt2_predicted['buy_prob'] >= g_min_prob].index
 
+    fcsted_ui_1 = fcsting_matrix_df.iloc[fcsted_index_1][['user_id', 'item_id']]
     fcsted_ui = fcsting_matrix_df.iloc[fcsted_index_1[fcsted_index_2]][['user_id', 'item_id']]
 
     forecasting_date = end_date + datetime.timedelta(days=1)
@@ -174,7 +166,7 @@ def main():
     fcsted_ui_with_rule = rule_fav_cart_before_1day(fcsting_window_df, fcsted_ui)
     fcsted_ui_with_rule.fillna(1, inplace=True)
 
-    if (forecasting_date_str == '2014-12-19'):
+    if (forecasting_date_str == '2014-12-18'):
         index = 0
         use_rule = 0
 
@@ -184,9 +176,10 @@ def main():
             prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", use_rule)
 
         if (use_rule):
-            fcsted_ui_with_rule.to_csv(submit_output_filename, index=False)
+            fcsted_ui_with_rule.to_csv(submit_output_filename, index=False)            
         else:
             fcsted_ui_no_rule.to_csv(submit_output_filename, index=False)
+            fcsted_ui_1.to_csv(submit_output_filename + ".1", index=False)
 
         param_filename = submit_output_filename + ".param.txt"
 
@@ -195,7 +188,7 @@ def main():
                       (g_nag_times, window_size, start_date_str, g_min_prob))
         param_f.close()
     else:
-        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only_no1212.csv" % (runningPath)
+        data_filename = r"%s\..\input\preprocessed_user_data_sold_item_only.csv" % (runningPath)
 
         print(getCurrentTime(), "reading csv ", data_filename)
         raw_data_df = pd.read_csv(data_filename, dtype={'user_id':np.str, 'item_id':np.str})
@@ -209,6 +202,10 @@ def main():
 
         p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_no_rule)
         print("%s WITHOUT rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
+        
+        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_1)
+        print("%s model 1 only: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
+        
 
     end_time = time.time()
     

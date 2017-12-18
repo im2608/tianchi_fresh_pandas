@@ -65,9 +65,9 @@ def feature_user_behavior_ratio(slide_window_df, slide_window_size, UIC, item_or
     user_behavior_raito_df.rename(columns={1:'user_view_ratio', 2:'user_fav_ratio', 3:'user_cart_ratio', 4:'user_buy_ratio'}, inplace=True)
     user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_behavior_raito_df, on=['user_id', item_or_category], how='left')
 
-    # 用户在过去 [1，2，3，4,7]天在item/category （浏览， 收藏， 购物车， 购买）的次数
+    # 用户在过去 [1，2，3，4]天在item/category （浏览， 收藏， 购物车， 购买）的次数
     user_behavior_cnt_n_day_arr = [user_behavior_cnt_df]
-    for dayoffset in [1,2,3,4,7]:
+    for dayoffset in [1,2,3,4]:
         user_behavior_cnt_n_day_arr = get_user_behavior_cnt(slide_window_df, dayoffset, item_or_category)
         user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_behavior_cnt_n_day_arr, on=['user_id', item_or_category], how='left')
         user_behavior_cnt_df.fillna(0, inplace=True)
@@ -83,6 +83,7 @@ def feature_user_behavior_ratio(slide_window_df, slide_window_size, UIC, item_or
     user_last_opt_hour.rename(columns={'hour':'user_last_opt_hour'}, inplace=True)
 
     user_1st_last_opt_hour = pd.merge(user_1st_opt_hour, user_last_opt_hour, on=['user_id', item_or_category], how='inner')
+    user_1st_last_opt_hour['user_opt_hour_ptp'] = user_1st_last_opt_hour['user_last_opt_hour'] - user_1st_last_opt_hour['user_1st_opt_hour']
     user_behavior_cnt_df = pd.merge(user_behavior_cnt_df, user_1st_last_opt_hour, on=['user_id', item_or_category], how='left')
 
     user_behavior_df = pd.merge(user_behavior_sum_df, user_behavior_cnt_df, how='left', on='user_id')
@@ -293,6 +294,12 @@ def feature_behavior_cnt_on_weekday(slide_window_df, user_or_item_or_category):
     for behavior in [1,2,3,4]:
         arr.append(behavior_cnt_on_weekday_df[behavior].rename(columns=lambda weekday: "%s%d" % (behavior_cnt_name[behavior], weekday)))
     
-    behavior_cnt_on_weekday_df = pd.concat(arr, axis=1)    
+    behavior_cnt_on_weekday_df = pd.concat(arr, axis=1)
+    for behavior in [1,2,3,4]:
+        for weekday in [0,1,2,3,4,5,6]:
+            weekday_col_name = "%s%d" % (behavior_cnt_name[behavior], weekday)
+            if (weekday_col_name not in behavior_cnt_on_weekday_df):
+                behavior_cnt_on_weekday_df[weekday_col_name] = 0
+
     return behavior_cnt_on_weekday_df
 
