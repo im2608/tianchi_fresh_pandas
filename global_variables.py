@@ -44,3 +44,16 @@ g_only_from_test_set = False
 #正负样本比例 1： g_nag_times
 g_nag_times = 10
 g_min_prob = 0.5
+
+g_normalize = True
+
+
+
+import numpy as np
+import pandas as pd
+# from sklearn.model_selection import StratifiedKFold
+from sklearn.cross_validation import StratifiedKFold
+from sklearn.cross_validation import KFold
+
+from itertools import product
+

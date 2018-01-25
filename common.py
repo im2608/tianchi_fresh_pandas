@@ -4,14 +4,18 @@ Created on Aug 4, 2017
 @author: Heng.Zhang
 '''
 
-import datetime
-import pandas as pd
-import numpy as np
-import time
 import csv
-from global_variables import *
+import datetime
+import time
+
 from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
+
+from global_variables import *
+import numpy as np
+import pandas as pd
 import xgboost as xgb
+from sklearn.preprocessing import StandardScaler
+
 
 def convertDatatimeToStr(opt_datatime):
     return "%04d-%02d-%02d" % (opt_datatime.year, opt_datatime.month, opt_datatime.day)
@@ -254,16 +258,39 @@ def trainingModel_2(feature_matrix_df, checking_date_str):
     params = {'max_depth': 4, 'colsample_bytree': 0.8, 'subsample': 0.8, 'eta': 0.02, 'silent': 1,
               'objective': 'binary:logistic','eval_metric ':'error', 'min_child_weight': 2.5,#'max_delta_step':10,'gamma':0.1,'scale_pos_weight':230/1,
                'seed': 10}  #
+    
+    sc_1 = StandardScaler()
+    sc_2= StandardScaler()
 
-    dtrain_1 = xgb.DMatrix(samples_for_1[features_names_for_model], label=samples_for_1['buy'])
-    dtest_2 = xgb.DMatrix(samples_for_2[features_names_for_model])
-    model_1 = xgb.train(params, dtrain_1, num_round)
+    if (g_normalize):
+        samples_1_normailized = sc_1.fit_transform(samples_for_1[features_names_for_model])
+        samples_2_normailized_by_1 = sc_1.fit_transform(samples_for_2[features_names_for_model])
+          
+        dtrain_1 = xgb.DMatrix(samples_1_normailized, label=samples_for_1['buy'])
+        model_1 = xgb.train(params, dtrain_1, num_round)
+         
+        # array([ 0.59414583,  0.1570912 ,  0.22166768], dtype=float32)
+        dtrain_2 = xgb.DMatrix(samples_2_normailized_by_1)
+        predicted_proba = model_1.predict(dtrain_2)
+      
+        samples_2_normailized = sc_2.fit_transform(samples_for_2[features_names_for_model])
+        dtrain_2 = xgb.DMatrix(samples_2_normailized, label=predicted_proba)
+        model_2 = xgb.train(params, dtrain_2, num_round)
+        print("WITH normalize....")
+    
+    else:
+        dtrain_1 = xgb.DMatrix(samples_for_1[features_names_for_model], label=samples_for_1['buy'])
+        model_1 = xgb.train(params, dtrain_1, num_round)
+      
+        # array([ 0.59414583,  0.1570912 ,  0.22166768], dtype=float32)
+        dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model])
+        predicted_proba = model_1.predict(dtrain_2)
+      
+        dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model], label=predicted_proba)
+        model_2 = xgb.train(params, dtrain_2, num_round)
+        print("WITHOUT normalize....")    
 
-    dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model])
+    return model_1, model_2, sc_1, sc_2
 
-#     array([ 0.59414583,  0.1570912 ,  0.22166768], dtype=float32)
-    predicted_proba = model_1.predict(dtrain_2)
 
-    dtrain_2 = xgb.DMatrix(samples_for_2[features_names_for_model], label=predicted_proba)
-    model_2 = xgb.train(params, dtrain_2, num_round)
-    return model_1, model_2
+

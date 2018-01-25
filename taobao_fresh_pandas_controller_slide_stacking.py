@@ -58,11 +58,6 @@ def main():
     forecasting_date = datetime.datetime.strptime(forecasting_date_str, "%Y-%m-%d")
 
     while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-#         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-#             checking_date = datetime.datetime(2014,12,14,0,0,0)
-#             window_start_date = checking_date - datetime.timedelta(days=window_size)
- 
         window_start_date_str = convertDatatimeToStr(window_start_date)
         submiteOneSubProcess(window_start_date_str, window_size)
  
@@ -111,12 +106,7 @@ def main():
     window_start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
     checking_date = window_start_date + datetime.timedelta(days=window_size)
 
-    while (checking_date <= end_date):
-        # 删除了12-12的数据， 不再计算12-12， 12-13的滑窗
-#         if (checking_date.month == 12 and (checking_date.day in [12, 13])):
-#             checking_date = datetime.datetime(2014,12,14,0,0,0)
-#             window_start_date = checking_date - datetime.timedelta(days=window_size)
-        
+    while (checking_date <= end_date):        
         window_start_date_str = convertDatatimeToStr(window_start_date)
         feature_mat_filename = r"%s\..\featuremat_and_model\feature_mat_%s_%d.csv" % (runningPath, window_start_date_str, window_size)
     
@@ -135,20 +125,28 @@ def main():
     train_feature_mat.fillna(0, inplace=True)
 
     # ensemble forecasting...
-    gbcf_1, gbcf_2 = trainingModel_2(train_feature_mat, forecasting_date)
+    gbcf_1, gbcf_2, sc_1, sc_2 = trainingModel_2(train_feature_mat, forecasting_date)
 #     gbcf_1, gbcf_2 = trainingModel(train_feature_mat, forecasting_date)
 
-    print("fcsting_matrix_df TYPE", type(fcsting_matrix_df))
     features_names_for_model = get_feature_name_for_model(train_feature_mat.columns)
     print("features_names_for_model len ", len(features_names_for_model))
     
-    fcsting_mat = xgb.DMatrix(fcsting_matrix_df[features_names_for_model])
+    
+    if (g_normalize):
+        fcsting_mat = xgb.DMatrix(sc_1.transform(fcsting_matrix_df[features_names_for_model]))
+    else:
+        fcsting_mat = xgb.DMatrix(fcsting_matrix_df[features_names_for_model])
+        
     Y_gbdt1_predicted = pd.DataFrame(gbcf_1.predict(fcsting_mat), columns=['buy_prob'])    
 
     fcsted_index_1 = Y_gbdt1_predicted[Y_gbdt1_predicted['buy_prob'] >= g_min_prob].index
     print(getCurrentTime(), " gbdt 1 forecasted %d" % (fcsted_index_1.shape[0]))
-
-    fcsting_mat = xgb.DMatrix(fcsting_matrix_df[features_names_for_model].iloc[fcsted_index_1])
+    
+    if (g_normalize):
+        fcsting_mat = xgb.DMatrix(sc_2.transform(fcsting_matrix_df[features_names_for_model].iloc[fcsted_index_1]))
+    else:
+        fcsting_mat = xgb.DMatrix(fcsting_matrix_df[features_names_for_model].iloc[fcsted_index_1])
+        
     Y_gbdt2_predicted = pd.DataFrame(gbcf_2.predict(fcsting_mat), columns=['buy_prob'])
 
     fcsted_index_2 = Y_gbdt2_predicted[Y_gbdt2_predicted['buy_prob'] >= g_min_prob].index
@@ -160,26 +158,17 @@ def main():
     forecasting_date_str = convertDatatimeToStr(forecasting_date)
     print("%s forecasting for %s, slide window %s, forecasted count %d" % (getCurrentTime(), forecasting_date_str, slide_windows, fcsted_ui.shape[0]))
 
-    fcsted_ui_no_rule = fcsted_ui.copy()
-
-    # 规则： 如果user 在  checking date 前一天 cart, 并且没有购买 ，则认为他checking date 会购买
-    fcsted_ui_with_rule = rule_fav_cart_before_1day(fcsting_window_df, fcsted_ui)
-    fcsted_ui_with_rule.fillna(1, inplace=True)
-
     if (forecasting_date_str == '2014-12-18'):
         index = 0
         use_rule = 0
 
-        prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", use_rule)
+        prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", 0)
         while (os.path.exists(submit_output_filename)):
             index += 1
-            prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", use_rule)
-
-        if (use_rule):
-            fcsted_ui_with_rule.to_csv(submit_output_filename, index=False)            
-        else:
-            fcsted_ui_no_rule.to_csv(submit_output_filename, index=False)
-            fcsted_ui_1.to_csv(submit_output_filename + ".1", index=False)
+            prob_output_filename, submit_output_filename = get_output_filename(index, "stacking", 0)
+ 
+        fcsted_ui.to_csv(submit_output_filename, index=False)
+        fcsted_ui_1.to_csv(submit_output_filename + ".1", index=False)
 
         param_filename = submit_output_filename + ".param.txt"
 
@@ -197,15 +186,11 @@ def main():
                                 (raw_data_df['behavior_type'] == 4) &
                                 (np.in1d(raw_data_df['item_id'], fcsted_item_df['item_id']))][['user_id', 'item_id']].drop_duplicates()
 
-        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_with_rule)
-        print("%s WITH rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-
-        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_no_rule)
+        p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui)
         print("%s WITHOUT rule: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
         
         p, r, f1 = calculate_POS_F1(Y_true_UI, fcsted_ui_1)
         print("%s model 1 only: precision: %.4f, recall %.4f, F1 %.4f" % (getCurrentTime(), p, r, f1))
-        
 
     end_time = time.time()
     

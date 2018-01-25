@@ -2,6 +2,9 @@
 Created on Nov 9, 2017
 
 @author: Heng.Zhang
+
+python taobao_fresh_pandas_controller.py s=2014-11-18 e=2014-12-16 f=2014-12-18 size=5
+
 '''
 
 import subprocess  
@@ -18,10 +21,10 @@ from sklearn.externals import joblib
 
 runningSubProcesses = {}
 
-def submiteOneSubProcess(start_date_str, end_date_str, slide_window_size):
-    cmdLine = "python taobao_fresh_pandas_parallel.py start_date=%s end_date=%s size=%d" % (start_date_str, end_date_str, slide_window_size)
+def submiteOneSubProcess(start_date_str, fcst_date_str, slide_window_size):
+    cmdLine = "python taobao_fresh_pandas_parallel.py s=%s f=%s size=%d" % (start_date_str, fcst_date_str, slide_window_size)
     sub = subprocess.Popen(cmdLine, shell=True)
-    runningSubProcesses[(start_date_str, end_date_str, time.time())] = sub
+    runningSubProcesses[(start_date_str, fcst_date_str, time.time())] = sub
     print("running cmd line: %s" % cmdLine)
     time.sleep(1)
     return
