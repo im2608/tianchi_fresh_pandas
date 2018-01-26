@@ -170,7 +170,7 @@ def main():
 
     end_time = time.time()
 
-    print(getCurrentTime(), " done, ran %d seconds" % (end_time - start_time))
+    print(getCurrentTime(), " model has done, ran %d seconds" % (end_time - start_time))
     
     return 0
 
